@@ -4,7 +4,6 @@ import {
   Building2,
   Mail,
   MapPin,
-  MoreHorizontal,
   Pencil,
   Phone,
   Plus,
@@ -46,93 +45,63 @@ export default function ResponsablesPage() {
     data,
     loading,
     reload,
-  } = useData<ResponsibleDTO[]>(
-    "/responsibles",
-  );
+  } = useData<ResponsibleDTO[]>("/responsibles");
 
-  const {
-    data: locations,
-  } = useData<LocationDTO[]>(
-    "/locations?active=true",
-  );
+  const { data: locations } =
+    useData<LocationDTO[]>("/locations?active=true");
 
   const list = data ?? [];
 
-  const [search, setSearch] =
-    useState("");
-
-  const [modalOpen, setModalOpen] =
-    useState(false);
-
+  const [search, setSearch] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] =
-    useState<ResponsibleDTO | null>(
-      null,
-    );
+    useState<ResponsibleDTO | null>(null);
 
-  const [form, setForm] =
-    useState({
-      name: "",
-      email: "",
-      phone: "",
-      role: "",
-      locationId: "",
-    });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+    locationId: "",
+  });
 
-  const [busy, setBusy] =
-    useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const filteredList =
-    useMemo(() => {
-      const term = search
-        .trim()
-        .toLowerCase();
+  const filteredList = useMemo(() => {
+    const term = search.trim().toLowerCase();
 
-      if (!term) {
-        return list;
-      }
+    if (!term) {
+      return list;
+    }
 
-      return list.filter(
-        (responsible) => {
-          const location =
-            locations?.find(
-              (item) =>
-                item.id ===
-                responsible.locationId,
-            );
-
-          return [
-            responsible.name,
-            responsible.role,
-            responsible.email,
-            responsible.phone,
-            location?.name,
-            location?.path,
-          ]
-            .filter(Boolean)
-            .some((value) =>
-              String(value)
-                .toLowerCase()
-                .includes(term),
-            );
-        },
+    return list.filter((responsible) => {
+      const location = locations?.find(
+        (item) => item.id === responsible.locationId,
       );
-    }, [
-      list,
-      locations,
-      search,
-    ]);
 
-  const activeCount =
-    list.filter(
-      (item) => item.active,
-    ).length;
+      return [
+        responsible.name,
+        responsible.role,
+        responsible.email,
+        responsible.phone,
+        location?.name,
+        location?.path,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value).toLowerCase().includes(term),
+        );
+    });
+  }, [list, locations, search]);
 
-  const inactiveCount =
-    list.length - activeCount;
+  const activeCount = list.filter(
+    (item) => item.active,
+  ).length;
+
+  const inactiveCount = list.length - activeCount;
 
   function openCreate() {
     setEditing(null);
-
     setForm({
       name: "",
       email: "",
@@ -140,63 +109,32 @@ export default function ResponsablesPage() {
       role: "",
       locationId: "",
     });
-
     setModalOpen(true);
   }
 
-  function openEdit(
-    responsible: ResponsibleDTO,
-  ) {
+  function openEdit(responsible: ResponsibleDTO) {
     setEditing(responsible);
-
     setForm({
-      name:
-        responsible.name,
-
-      email:
-        responsible.email ?? "",
-
-      phone:
-        responsible.phone ?? "",
-
-      role:
-        responsible.role ?? "",
-
-      locationId:
-        responsible.locationId ??
-        "",
+      name: responsible.name,
+      email: responsible.email ?? "",
+      phone: responsible.phone ?? "",
+      role: responsible.role ?? "",
+      locationId: responsible.locationId ?? "",
     });
-
     setModalOpen(true);
   }
 
-  async function submit(
-    e: FormEvent,
-  ) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-
     setBusy(true);
 
     try {
       const payload = {
-        name:
-          form.name.trim(),
-
-        email:
-          form.email.trim() ||
-          undefined,
-
-        phone:
-          form.phone.trim() ||
-          undefined,
-
-        role:
-          form.role.trim() ||
-          undefined,
-
-        locationId:
-          form.locationId ||
-          undefined,
+        name: form.name.trim(),
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        role: form.role.trim() || undefined,
+        locationId: form.locationId || undefined,
       };
 
       if (editing) {
@@ -204,19 +142,10 @@ export default function ResponsablesPage() {
           `/responsibles/${editing.id}`,
           payload,
         );
-
-        notify(
-          "Responsable actualizado",
-        );
+        notify("Responsable actualizado");
       } else {
-        await apiPost(
-          "/responsibles",
-          payload,
-        );
-
-        notify(
-          "Responsable creado",
-        );
+        await apiPost("/responsibles", payload);
+        notify("Responsable creado");
       }
 
       setModalOpen(false);
@@ -233,17 +162,11 @@ export default function ResponsablesPage() {
     }
   }
 
-  async function toggleActive(
-    responsible: ResponsibleDTO,
-  ) {
+  async function toggleActive(responsible: ResponsibleDTO) {
     try {
-      await apiPatch(
-        `/responsibles/${responsible.id}`,
-        {
-          active:
-            !responsible.active,
-        },
-      );
+      await apiPatch(`/responsibles/${responsible.id}`, {
+        active: !responsible.active,
+      });
 
       notify(
         responsible.active
@@ -262,27 +185,18 @@ export default function ResponsablesPage() {
     }
   }
 
-  async function remove(
-    responsible: ResponsibleDTO,
-  ) {
-    const confirmed =
-      window.confirm(
-        `¿Eliminar a ${responsible.name}?`,
-      );
+  async function remove(responsible: ResponsibleDTO) {
+    const confirmed = window.confirm(
+      `¿Eliminar a ${responsible.name}?`,
+    );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      await apiDelete(
-        `/responsibles/${responsible.id}`,
-      );
-
-      notify(
-        "Responsable eliminado",
-      );
-
+      await apiDelete(`/responsibles/${responsible.id}`);
+      notify("Responsable eliminado");
       reload();
     } catch (err) {
       notify(
@@ -294,68 +208,44 @@ export default function ResponsablesPage() {
     }
   }
 
-  function getLocation(
-    responsible: ResponsibleDTO,
-  ) {
+  function getLocation(responsible: ResponsibleDTO) {
     return locations?.find(
-      (location) =>
-        location.id ===
-        responsible.locationId,
+      (location) => location.id === responsible.locationId,
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
       <PageHeader
         title="Responsables"
         description="Personas asociadas a la custodia y gestión de bienes institucionales."
         actions={
-          <Button
-            onClick={openCreate}
-          >
+          <Button onClick={openCreate}>
             <Plus size={16} />
             Nuevo responsable
           </Button>
         }
       />
 
-      {/* =====================================================
-          RESUMEN
-      ===================================================== */}
-
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryItem
           label="Total"
           value={list.length}
-          icon={
-            <UsersRound size={18} />
-          }
+          icon={<UsersRound size={18} />}
         />
 
         <SummaryItem
           label="Activos"
           value={activeCount}
-          icon={
-            <UserRound size={18} />
-          }
+          icon={<UserRound size={18} />}
         />
 
         <SummaryItem
           label="Inactivos"
           value={inactiveCount}
-          icon={
-            <Power size={18} />
-          }
+          icon={<Power size={18} />}
         />
       </div>
-
-      {/* =====================================================
-          BUSCADOR
-      ===================================================== */}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="relative max-w-xl">
@@ -366,20 +256,12 @@ export default function ResponsablesPage() {
 
           <Input
             value={search}
-            onChange={(e) =>
-              setSearch(
-                e.target.value,
-              )
-            }
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, cargo, correo o ubicación..."
             className="pl-9"
           />
         </div>
       </section>
-
-      {/* =====================================================
-          LISTADO
-      ===================================================== */}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -421,189 +303,138 @@ export default function ResponsablesPage() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {filteredList.map(
-              (responsible) => {
-                const location =
-                  getLocation(
-                    responsible,
-                  );
+            {filteredList.map((responsible) => {
+              const location = getLocation(responsible);
 
-                return (
-                  <div
-                    key={
-                      responsible.id
-                    }
-                    className={[
-                      "group flex flex-col gap-4 px-5 py-4 transition-colors md:flex-row md:items-center",
-                      responsible.active
-                        ? "hover:bg-slate-50/80"
-                        : "bg-slate-50/60 opacity-65",
-                    ].join(" ")}
-                  >
-                    {/* AVATAR */}
+              return (
+                <div
+                  key={responsible.id}
+                  className={[
+                    "group flex flex-col gap-4 px-5 py-4 transition-colors md:flex-row md:items-center",
+                    responsible.active
+                      ? "hover:bg-slate-50/80"
+                      : "bg-slate-50/60 opacity-65",
+                  ].join(" ")}
+                >
+                  <div className="flex min-w-0 flex-1 items-start gap-4">
+                    <div
+                      className={[
+                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
+                        responsible.active
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-100 text-slate-500",
+                      ].join(" ")}
+                    >
+                      {getInitials(responsible.name)}
+                    </div>
 
-                    <div className="flex min-w-0 flex-1 items-start gap-4">
-                      <div
-                        className={[
-                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
-                          responsible.active
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-500",
-                        ].join(" ")}
-                      >
-                        {getInitials(
-                          responsible.name,
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {responsible.name}
+                        </p>
+
+                        {!responsible.active && (
+                          <Badge tone="slate">
+                            Inactivo
+                          </Badge>
                         )}
                       </div>
 
-                      {/* INFO */}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {responsible.role ?? "Sin cargo definido"}
+                      </p>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {
-                              responsible.name
-                            }
-                          </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500">
+                        {responsible.email && (
+                          <span className="flex items-center gap-1.5">
+                            <Mail size={13} />
+                            {responsible.email}
+                          </span>
+                        )}
 
-                          {!responsible.active && (
-                            <Badge tone="slate">
-                              Inactivo
-                            </Badge>
-                          )}
-                        </div>
+                        {responsible.phone && (
+                          <span className="flex items-center gap-1.5">
+                            <Phone size={13} />
+                            {responsible.phone}
+                          </span>
+                        )}
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          {responsible.role ??
-                            "Sin cargo definido"}
-                        </p>
-
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500">
-                          {responsible.email && (
-                            <span className="flex items-center gap-1.5">
-                              <Mail
-                                size={13}
-                              />
-
-                              {
-                                responsible.email
-                              }
-                            </span>
-                          )}
-
-                          {responsible.phone && (
-                            <span className="flex items-center gap-1.5">
-                              <Phone
-                                size={13}
-                              />
-
-                              {
-                                responsible.phone
-                              }
-                            </span>
-                          )}
-
-                          {location && (
-                            <span className="flex items-center gap-1.5">
-                              <MapPin
-                                size={13}
-                              />
-
-                              {location.path ||
-                                location.name}
-                            </span>
-                          )}
-                        </div>
+                        {location && (
+                          <span className="flex items-center gap-1.5">
+                            <MapPin size={13} />
+                            {location.path || location.name}
+                          </span>
+                        )}
                       </div>
                     </div>
-
-                    {/* UBICACIÓN */}
-
-                    <div className="md:w-[220px]">
-                      {location ? (
-                        <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200">
-                            <Building2
-                              size={14}
-                            />
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                              Ubicación
-                            </p>
-
-                            <p className="mt-0.5 truncate text-xs font-medium text-slate-700">
-                              {location.path ||
-                                location.name}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-xs text-slate-400">
-                          Sin ubicación asociada
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ACCIONES */}
-
-                    <div className="flex shrink-0 items-center gap-1 md:justify-end">
-                      <ActionButton
-                        title="Editar"
-                        onClick={() =>
-                          openEdit(
-                            responsible,
-                          )
-                        }
-                      >
-                        <Pencil
-                          size={15}
-                        />
-                      </ActionButton>
-
-                      <ActionButton
-                        title={
-                          responsible.active
-                            ? "Desactivar"
-                            : "Activar"
-                        }
-                        onClick={() =>
-                          toggleActive(
-                            responsible,
-                          )
-                        }
-                      >
-                        <Power
-                          size={15}
-                        />
-                      </ActionButton>
-
-                      <ActionButton
-                        title="Eliminar"
-                        danger
-                        onClick={() =>
-                          remove(
-                            responsible,
-                          )
-                        }
-                      >
-                        <Trash2
-                          size={15}
-                        />
-                      </ActionButton>
-                    </div>
                   </div>
-                );
-              },
-            )}
+
+                  <div className="md:w-[220px]">
+                    {location ? (
+                      <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200">
+                          <Building2 size={14} />
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Ubicación
+                          </p>
+
+                          <p className="mt-0.5 truncate text-xs font-medium text-slate-700">
+                            {location.path || location.name}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-2.5 text-xs text-slate-400">
+                        Sin ubicación asociada
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2 md:justify-end">
+                    <ActionButton
+                      title="Editar"
+                      variant="edit"
+                      onClick={() => openEdit(responsible)}
+                    >
+                      <Pencil size={15} />
+                    </ActionButton>
+
+                    <ActionButton
+                      title={
+                        responsible.active
+                          ? "Desactivar"
+                          : "Activar"
+                      }
+                      variant={
+                        responsible.active
+                          ? "toggle-off"
+                          : "toggle-on"
+                      }
+                      onClick={() =>
+                        toggleActive(responsible)
+                      }
+                    >
+                      <Power size={15} />
+                    </ActionButton>
+
+                    <ActionButton
+                      title="Eliminar"
+                      variant="delete"
+                      onClick={() => remove(responsible)}
+                    >
+                      <Trash2 size={15} />
+                    </ActionButton>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
-
-      {/* =====================================================
-          MODAL
-      ===================================================== */}
 
       <Modal
         open={modalOpen}
@@ -618,16 +449,11 @@ export default function ResponsablesPage() {
             : "Nuevo responsable"
         }
       >
-        <form
-          onSubmit={submit}
-          className="space-y-5"
-        >
+        <form onSubmit={submit} className="space-y-5">
           <div className="rounded-xl bg-emerald-50 px-4 py-3">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                <UserRound
-                  size={17}
-                />
+                <UserRound size={17} />
               </div>
 
               <div>
@@ -642,17 +468,13 @@ export default function ResponsablesPage() {
             </div>
           </div>
 
-          <Field
-            label="Nombre completo"
-            required
-          >
+          <Field label="Nombre completo" required>
             <Input
               value={form.name}
               onChange={(e) =>
                 setForm((current) => ({
                   ...current,
-                  name:
-                    e.target.value,
+                  name: e.target.value,
                 }))
               }
               placeholder="Ej.: María González"
@@ -667,14 +489,10 @@ export default function ResponsablesPage() {
                 type="email"
                 value={form.email}
                 onChange={(e) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      email:
-                        e.target
-                          .value,
-                    }),
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    email: e.target.value,
+                  }))
                 }
                 placeholder="correo@escuela.cl"
               />
@@ -684,14 +502,10 @@ export default function ResponsablesPage() {
               <Input
                 value={form.phone}
                 onChange={(e) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      phone:
-                        e.target
-                          .value,
-                    }),
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    phone: e.target.value,
+                  }))
                 }
                 placeholder="+56 9..."
                 maxLength={40}
@@ -705,8 +519,7 @@ export default function ResponsablesPage() {
               onChange={(e) =>
                 setForm((current) => ({
                   ...current,
-                  role:
-                    e.target.value,
+                  role: e.target.value,
                 }))
               }
               placeholder="Ej.: Encargado TIC"
@@ -720,8 +533,7 @@ export default function ResponsablesPage() {
               onChange={(e) =>
                 setForm((current) => ({
                   ...current,
-                  locationId:
-                    e.target.value,
+                  locationId: e.target.value,
                 }))
               }
             >
@@ -729,17 +541,14 @@ export default function ResponsablesPage() {
                 Sin ubicación
               </option>
 
-              {(locations ?? []).map(
-                (location) => (
-                  <option
-                    key={location.id}
-                    value={location.id}
-                  >
-                    {location.path ||
-                      location.name}
-                  </option>
-                ),
-              )}
+              {(locations ?? []).map((location) => (
+                <option
+                  key={location.id}
+                  value={location.id}
+                >
+                  {location.path || location.name}
+                </option>
+              ))}
             </Select>
           </Field>
 
@@ -749,19 +558,14 @@ export default function ResponsablesPage() {
               variant="secondary"
               onClick={() => {
                 if (!busy) {
-                  setModalOpen(
-                    false,
-                  );
+                  setModalOpen(false);
                 }
               }}
             >
               Cancelar
             </Button>
 
-            <Button
-              type="submit"
-              loading={busy}
-            >
+            <Button type="submit" loading={busy}>
               {editing
                 ? "Guardar cambios"
                 : "Crear responsable"}
@@ -807,13 +611,27 @@ function ActionButton({
   children,
   title,
   onClick,
-  danger = false,
+  variant,
 }: {
   children: React.ReactNode;
   title: string;
   onClick: () => void;
-  danger?: boolean;
+  variant:
+    | "edit"
+    | "toggle-on"
+    | "toggle-off"
+    | "delete";
 }) {
+  const styles = {
+    edit: "bg-sky-50 text-sky-600 hover:bg-sky-100 hover:text-sky-700",
+    "toggle-on":
+      "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700",
+    "toggle-off":
+      "bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700",
+    delete:
+      "bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700",
+  };
+
   return (
     <button
       type="button"
@@ -822,9 +640,7 @@ function ActionButton({
       onClick={onClick}
       className={[
         "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
-        danger
-          ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
-          : "text-slate-400 hover:bg-slate-100 hover:text-slate-700",
+        styles[variant],
       ].join(" ")}
     >
       {children}
@@ -832,9 +648,7 @@ function ActionButton({
   );
 }
 
-function getInitials(
-  name: string,
-) {
+function getInitials(name: string) {
   return name
     .split(" ")
     .filter(Boolean)

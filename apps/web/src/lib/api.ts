@@ -228,3 +228,17 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string; resetUrl?: string }> {
+  const res = await rawRequest<ApiData<{ message: string; resetUrl?: string }>>("POST", "/auth/forgot-password", {
+    body: { email },
+  });
+  return res.data;
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean }> {
+  const res = await rawRequest<ApiData<{ success: boolean }>>("POST", "/auth/reset-password", {
+    body: { token, newPassword },
+  });
+  return res.data;
+}

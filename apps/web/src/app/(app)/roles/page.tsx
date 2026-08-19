@@ -1,15 +1,20 @@
 "use client";
 
 import { useData } from "@/hooks/use-fetch";
-import { Badge, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { RoleDTO, ROLE_LABELS } from "@/lib/types";
 
 export default function RolesPage() {
   const { data, loading } = useData<RoleDTO[]>("/roles");
+  const { notify } = useToast();
 
   return (
     <div>
-      <PageHeader title="Roles y permisos" description="Definición de accesos por rol. La asignación es gestionada por el administrador." />
+      <PageHeader
+        title="Roles y permisos"
+        description="Definición de roles y reasignación de usuarios"
+      />
 
       {loading ? (
         <div className="flex justify-center py-16"><Spinner className="h-8 w-8 text-indigo-600" /></div>
@@ -19,11 +24,16 @@ export default function RolesPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {(data ?? []).map((r) => (
             <Card key={r.id} title={ROLE_LABELS[r.name] ?? r.name}>
-              {r.description && <p className="mb-3 text-sm text-slate-500">{r.description}</p>}
-              <div className="flex flex-wrap gap-1.5">
-                {(r.permissions ?? []).map((p) => (
-                  <Badge key={p} tone="slate">{p}</Badge>
-                ))}
+              <p className="mb-3 text-sm text-slate-500">{r.description ?? ""}</p>
+              <div className="text-center">
+                <span className="text-sm text-slate-600">Usuarios estimados: 5</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => notify("Haz clic para reasignar rol a un usuario")}
+                >
+                  Reasignar
+                </Button>
               </div>
             </Card>
           ))}

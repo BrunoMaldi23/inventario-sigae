@@ -19,8 +19,15 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  const isAllowedOrigin = (origin: string): boolean => {
+    if (!origin) return true;
+    if (corsOrigins.includes(origin)) return true;
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === 'vercel.app' || host.endsWith('.vercel.app') || host.endsWith('.ts.net');
+  };
+
   app.enableCors({
-    origin: corsOrigins,
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin ?? '')),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });

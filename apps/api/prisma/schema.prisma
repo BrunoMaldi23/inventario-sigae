@@ -1,0 +1,463 @@
+// ============================================================
+// Inventario Escolar — Esquema Prisma
+// PostgreSQL es la ÚNICA fuente oficial de datos.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Usuarios, roles y permisos (RBAC)
+// ------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  passwordHash  String
+  name          String
+  roleId        String    @db.Uuid
+  role          Role      @relation(fields: [roleId], references: [id])
+
+  active        Boolean   @default(true)
+
+  createdById   String?   @db.Uuid
+  createdAssets Asset[]   @relation("AssetCreatedBy")
+  updatedAssets Asset[]   @relation("AssetUpdatedBy")
+  performedBy   AssetMovement[] @relation("PerformedBy")
+  approvedBy    AssetMovement[] @relation("ApprovedBy")
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+  attachments   AssetAttachment[]
+  imports       ImportJob[]
+  maintenance   MaintenanceRecord[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  @@index([roleId])
+  @@index([email])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
+  description String?
+  active      Boolean          @default(true)
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ------------------------------------------------------------------
+// Catálogos
+// ------------------------------------------------------------------
+
+model AssetCategory {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  parentId    String?         @db.Uuid
+  parent      AssetCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    AssetCategory[] @relation("CategoryTree")
+  active      Boolean         @default(true)
+  assets      Asset[]         @relation("AssetCategory")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([parentId, name])
+  @@index([parentId])
+  @@index([name])
+}
+
+model AssetStatus {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @unique
+  color     String       @default("#6b7280")
+  sortOrder Int          @default(0)
+  active    Boolean      @default(true)
+  assets    Asset[]
+  movementsFrom AssetMovement[] @relation("MovFromStatus")
+  movementsTo   AssetMovement[] @relation("MovToStatus")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([sortOrder])
+}
+
+model Location {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  type        LocationType
+  parentId    String?     @db.Uuid
+  parent      Location?   @relation("LocationTree", fields: [parentId], references: [id])
+  children    Location[]  @relation("LocationTree")
+  description String?
+  active      Boolean     @default(true)
+  assets      Asset[]
+  responsibles Responsible[]
+  movFrom     AssetMovement[] @relation("MovFromLocation")
+  movTo       AssetMovement[] @relation("MovToLocation")
+  inventories InventoryCount[]
+  createdById String?     @db.Uuid
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([parentId, name])
+  @@index([parentId])
+  @@index([type])
+}
+
+model Responsible {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  email      String?
+  phone      String?
+  role       String?
+  locationId String?  @db.Uuid
+  location   Location? @relation(fields: [locationId], references: [id])
+  active     Boolean  @default(true)
+  assets     Asset[]
+  movFrom    AssetMovement[] @relation("MovFromResponsible")
+  movTo      AssetMovement[] @relation("MovToResponsible")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([name])
+}
+
+// ------------------------------------------------------------------
+// Bienes (Assets)
+// ------------------------------------------------------------------
+
+model Asset {
+  id              String          @id @default(uuid()) @db.Uuid
+  assetCode       String          @unique
+  name            String
+  description     String?
+  brand           String?
+  model           String?
+  serialNumber    String?
+  qrCode          String?         @unique
+  barcode         String?
+
+  categoryId      String?         @db.Uuid
+  category        AssetCategory?  @relation("AssetCategory", fields: [categoryId], references: [id])
+  statusId        String          @db.Uuid
+  status          AssetStatus     @relation(fields: [statusId], references: [id])
+  locationId      String?         @db.Uuid
+  location        Location?       @relation(fields: [locationId], references: [id])
+  responsibleId   String?         @db.Uuid
+  responsible     Responsible?    @relation(fields: [responsibleId], references: [id])
+
+  acquisitionDate DateTime?
+  acquisitionValue Decimal?       @db.Decimal(14, 2)
+  supplier        String?
+  invoiceNumber   String?
+  purchaseOrder   String?
+  fundingSource   String?
+  provenance      String?
+
+  notes           String?
+  active          Boolean         @default(true)
+  // Optimistic locking / versionado para concurrencia
+  version         Int             @default(1)
+
+  createdById     String?         @db.Uuid
+  creator         User?           @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?         @db.Uuid
+  updater         User?           @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+
+  movements       AssetMovement[]
+  attachments     AssetAttachment[]
+  maintenance     MaintenanceRecord[]
+  inventoryItems  InventoryCountItem[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  @@index([statusId])
+  @@index([locationId])
+  @@index([categoryId])
+  @@index([responsibleId])
+  @@index([serialNumber])
+  @@index([name])
+  @@index([brand])
+  @@index([updatedAt])
+}
+
+// ------------------------------------------------------------------
+// Movimientos (historial inmutable)
+// ------------------------------------------------------------------
+
+model AssetMovement {
+  id                String        @id @default(uuid()) @db.Uuid
+  assetId           String        @db.Uuid
+  asset             Asset         @relation(fields: [assetId], references: [id])
+  type              MovementType
+
+  fromLocationId    String?       @db.Uuid
+  fromLocation      Location?     @relation("MovFromLocation", fields: [fromLocationId], references: [id])
+  toLocationId      String?       @db.Uuid
+  toLocation        Location?     @relation("MovToLocation", fields: [toLocationId], references: [id])
+
+  fromResponsibleId String?       @db.Uuid
+  fromResponsible   Responsible?  @relation("MovFromResponsible", fields: [fromResponsibleId], references: [id])
+  toResponsibleId   String?       @db.Uuid
+  toResponsible     Responsible?  @relation("MovToResponsible", fields: [toResponsibleId], references: [id])
+
+  fromStatusId      String?       @db.Uuid
+  fromStatus        AssetStatus?  @relation("MovFromStatus", fields: [fromStatusId], references: [id])
+  toStatusId        String?       @db.Uuid
+  toStatus          AssetStatus?  @relation("MovToStatus", fields: [toStatusId], references: [id])
+
+  reason            String
+  notes             String?
+
+  performedById     String        @db.Uuid
+  performedBy       User          @relation("PerformedBy", fields: [performedById], references: [id])
+  approvedById      String?       @db.Uuid
+  approvedBy        User?         @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  createdAt         DateTime      @default(now())
+
+  @@index([assetId])
+  @@index([type])
+  @@index([toLocationId])
+  @@index([createdAt])
+}
+
+model AssetAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  assetId      String   @db.Uuid
+  asset        Asset    @relation(fields: [assetId], references: [id])
+  type         AttachmentType
+  filename     String
+  mimeType     String
+  size         Int
+  url          String
+  key          String?
+  uploadedById String?  @db.Uuid
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([assetId])
+}
+
+// ------------------------------------------------------------------
+// Auditoría (inmutable, solo escritura)
+// ------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------------
+// Importación Excel
+// ------------------------------------------------------------------
+
+model ImportJob {
+  id            String        @id @default(uuid()) @db.Uuid
+  status        ImportStatus  @default(PENDING)
+  filename      String
+  totalRows     Int           @default(0)
+  validRows     Int           @default(0)
+  warningRows   Int           @default(0)
+  duplicateRows Int           @default(0)
+  errorRows     Int           @default(0)
+  mapping       Json?
+  createdById   String?       @db.Uuid
+  createdBy     User?         @relation(fields: [createdById], references: [id])
+  errors        ImportError[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  completedAt   DateTime?
+
+  @@index([status])
+  @@index([createdById])
+}
+
+model ImportError {
+  id          String    @id @default(uuid()) @db.Uuid
+  importJobId String    @db.Uuid
+  importJob   ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  rowNumber   Int?
+  code        String
+  message     String
+  data        Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([importJobId])
+}
+
+// ------------------------------------------------------------------
+// Módulos avanzados (Fase 3) — preparados en el esquema
+// ------------------------------------------------------------------
+
+model MaintenanceRecord {
+  id          String    @id @default(uuid()) @db.Uuid
+  assetId     String    @db.Uuid
+  asset       Asset     @relation(fields: [assetId], references: [id])
+  type        String
+  description String?
+  startedAt   DateTime
+  finishedAt  DateTime?
+  cost        Decimal?  @db.Decimal(14, 2)
+  createdById String?   @db.Uuid
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([assetId])
+}
+
+model InventoryCount {
+  id            String               @id @default(uuid()) @db.Uuid
+  name          String
+  locationId    String?              @db.Uuid
+  location      Location?            @relation(fields: [locationId], references: [id])
+  expectedTotal Int                  @default(0)
+  scannedTotal  Int                  @default(0)
+  status        InventoryCountStatus @default(OPEN)
+  startedById   String?
+  completedById String?
+  items         InventoryCountItem[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  completedAt   DateTime?
+
+  @@index([status])
+  @@index([locationId])
+}
+
+model InventoryCountItem {
+  id               String              @id @default(uuid()) @db.Uuid
+  inventoryCountId String              @db.Uuid
+  inventoryCount   InventoryCount      @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  assetId          String              @db.Uuid
+  asset            Asset               @relation(fields: [assetId], references: [id])
+  result           InventoryCountResult
+  notes            String?
+  scannedById      String?
+  scannedAt        DateTime?           @default(now())
+
+  @@index([inventoryCountId])
+  @@index([result])
+}
+
+// ------------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------------
+
+enum LocationType {
+  building
+  floor
+  classroom
+  office
+  warehouse
+  library
+  laboratory
+  gym
+  common_area
+  other
+}
+
+enum MovementType {
+  TRANSFER
+  ASSIGNMENT
+  RETURN
+  LOAN
+  REPAIR
+  MAINTENANCE
+  STORAGE
+  DISPOSAL
+  STATUS_CHANGE
+  OTHER
+}
+
+enum AttachmentType {
+  PHOTO
+  DOCUMENT
+  INVOICE
+  PURCHASE
+  ACT
+  DISPOSAL
+  OTHER
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  VALIDATED
+  COMPLETED
+  FAILED
+}
+
+enum InventoryCountStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum InventoryCountResult {
+  FOUND
+  MISSING
+  EXTRA
+  DAMAGED
+}

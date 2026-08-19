@@ -1,0 +1,26 @@
+name: inventario-escolar
+
+# PostgreSQL oficial del proyecto.
+# Si ya existe un servidor PostgreSQL externo, defina DATABASE_URL
+# apuntando a él y omita este servicio (docker compose up api o solo la API).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inventario-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inventario_escolar}
+      POSTGRES_USER: ${POSTGRES_USER:-inventario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventario_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - inventario_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inventario} -d ${POSTGRES_DB:-inventario_escolar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  inventario_pgdata:

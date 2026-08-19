@@ -1,0 +1,10 @@
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { AuthUser } from '@inventario/types';
+
+/** Usuario autenticado inyectado por el guard. */
+export const CurrentUser = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): AuthUser => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user as AuthUser;
+  },
+);

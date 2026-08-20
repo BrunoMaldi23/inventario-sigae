@@ -151,32 +151,8 @@ async function seedUsers(roles: Map<string, Role>) {
     create: {
       email: 'admin@escuela.cl',
       name: 'Administrador Principal',
-      passwordHash: await argon2.hash('Admin.1234'),
+      passwordHash: await argon2.hash('Bruno204$'),
       roleId: adminRole.id,
-    },
-  });
-
-  const encRole = findRole('ENCARGADO_INVENTARIO');
-  await prisma.user.upsert({
-    where: { email: 'encargado@escuela.cl' },
-    update: {},
-    create: {
-      email: 'encargado@escuela.cl',
-      name: 'Encargado de Inventario',
-      passwordHash: await argon2.hash('Encargado.1234'),
-      roleId: encRole.id,
-    },
-  });
-
-  const funcRole = findRole('FUNCIONARIO');
-  await prisma.user.upsert({
-    where: { email: 'funcionario@escuela.cl' },
-    update: {},
-    create: {
-      email: 'funcionario@escuela.cl',
-      name: 'Funcionario Terreno',
-      passwordHash: await argon2.hash('Funcionario.1234'),
-      roleId: funcRole.id,
     },
   });
 }

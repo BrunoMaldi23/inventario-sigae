@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { useData, usePage } from "@/hooks/use-fetch";
 import {
   apiPatch,
   apiPost,
+  apiDelete,
 } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -165,6 +167,39 @@ export default function UsuariosPage() {
     });
 
     setModalOpen(true);
+  }
+
+  async function deleteUser(
+    id: string,
+  ) {
+    if (
+      confirm(
+        "¿Estás seguro de eliminar este usuario?"
+      )
+    ) {
+      setBusy(true);
+
+      try {
+        await apiDelete(
+          `/users/${id}`,
+        );
+
+        notify(
+          "Usuario eliminado",
+        );
+
+        reload();
+      } catch (err) {
+        notify(
+          err instanceof Error
+            ? err.message
+            : "Error al eliminar",
+          "error",
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
   }
 
   async function submit(
@@ -506,7 +541,7 @@ export default function UsuariosPage() {
                     {/* ACCIONES */}
 
                     <Td>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           onClick={() =>
@@ -519,6 +554,20 @@ export default function UsuariosPage() {
                           className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition hover:bg-sky-100 hover:text-sky-700"
                         >
                           <Pencil
+                            size={15}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteUser(user.id!)
+                          }
+                          title="Eliminar usuario"
+                          aria-label="Eliminar usuario"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100 hover:text-red-700"
+                        >
+                          <Trash
                             size={15}
                           />
                         </button>

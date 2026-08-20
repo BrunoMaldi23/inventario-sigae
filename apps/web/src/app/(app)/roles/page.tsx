@@ -1,38 +1,230 @@
 "use client";
 
 import {
-  BriefcaseBusiness,
-  Building2,
-  Eye,
-  Shield,
+  KeyRound,
+  Mail,
+  Pencil,
+  Plus,
+  Search,
   ShieldCheck,
-  UserCog,
+  Trash,
   UserRound,
   UsersRound,
 } from "lucide-react";
+import { FormEvent, useMemo, useState } from "react";
 
+import { Modal } from "@/components/modal";
+import { Pagination } from "@/components/pagination";
+import { Table, Td, Th } from "@/components/table";
 import { useToast } from "@/components/toast";
 import {
+  Badge,
   Button,
   EmptyState,
+  Field,
+  Input,
   PageHeader,
+  Select,
   Spinner,
 } from "@/components/ui";
-import { useData } from "@/hooks/use-fetch";
+import { useData, usePage } from "@/hooks/use-fetch";
+import {
+  apiPatch,
+  apiPost,
+  apiDelete,
+} from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import {
   ROLE_LABELS,
   RoleDTO,
 } from "@/lib/types";
 
 export default function RolesPage() {
-  const {
-    data,
-    loading,
-  } = useData<RoleDTO[]>("/roles");
-
   const { notify } = useToast();
 
-  const roles = data ?? [];
+  const {
+    items,
+    meta,
+    loading,
+    setPage,
+    reload,
+  } = usePage<RoleDTO>(
+    "/roles",
+    {
+      pageSize: 20,
+    },
+  );
+
+  const {
+    data: roles,
+  } = useData<RoleDTO[]>(
+    "/roles",
+  );
+
+  const [search, setSearch] =
+    useState("");
+
+  const [modalOpen, setModalOpen] =
+    useState(false);
+
+  const [editing, setEditing] =
+    useState<RoleDTO | null>(
+      null,
+    );
+
+  const [form, setForm] =
+    useState<{
+      name: string;
+      description: string;
+      active: boolean;
+    }>({
+      name: "",
+      description: "",
+      active: true,
+    });
+
+  const [busy, setBusy] =
+    useState(false);
+
+  const filteredItems =
+    useMemo(() => {
+      const term = search
+        .trim()
+        .toLowerCase();
+
+      if (!term) {
+        return items;
+      }
+
+      return items.filter(
+        (role) => {
+          return [
+            role.name,
+            role.description ?? "",
+          ].some((value) =>
+            value.toLowerCase().includes(term),
+          );
+        },
+      );
+    }, [
+      items,
+      search,
+    ]);
+
+  function openCreate() {
+    setEditing(null);
+
+    setForm({
+      name: "",
+      description: "",
+      active: true,
+    });
+
+    setModalOpen(true);
+  }
+
+  function openEdit(
+    role: RoleDTO,
+  ) {
+    setEditing(role);
+
+    setForm({
+      name: role.name,
+
+      description: role.description ?? "",
+
+      active: role.active ?? true,
+    });
+
+    setModalOpen(true);
+  }
+
+  async function submit(
+    e: FormEvent,
+  ) {
+    e.preventDefault();
+
+    setBusy(true);
+
+    try {
+      if (editing) {
+        await apiPatch(
+          `/roles/${editing.id}`,
+          {
+            name: form.name.trim(),
+
+            description: form.description.trim(),
+
+            active: form.active,
+          },
+        );
+
+        notify(
+          "Rol actualizado",
+        );
+      } else {
+        await apiPost(
+          "/roles",
+          {
+            name: form.name.trim(),
+
+            description: form.description.trim(),
+
+            active: form.active,
+          },
+        );
+
+        notify(
+          "Rol creado",
+        );
+      }
+
+      setModalOpen(false);
+      reload();
+    } catch (err) {
+      notify(
+        err instanceof Error
+          ? err.message
+          : "Error al guardar",
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRole(
+    id: string,
+  ) {
+    if (
+      confirm(
+        "¿Estás seguro de eliminar este rol?",
+      )
+    ) {
+      setBusy(true);
+
+      try {
+        await apiDelete(
+          `/roles/${id}`,
+        );
+
+        notify(
+          "Rol eliminado",
+        );
+
+        reload();
+      } catch (err) {
+        notify(
+          err instanceof Error
+            ? err.message
+            : "Error al eliminar",
+          "error",
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -41,8 +233,16 @@ export default function RolesPage() {
       ===================================================== */}
 
       <PageHeader
-        title="Roles y permisos"
-        description="Define los niveles de acceso y responsabilidades dentro del sistema."
+        title="Roles"
+        description="Catálogo de roles y permisos del sistema."
+        actions={
+          <Button
+            onClick={openCreate}
+          >
+            <Plus size={16} />
+            Nuevo rol
+          </Button>
+        }
       />
 
       {/* =====================================================
@@ -51,226 +251,374 @@ export default function RolesPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryItem
-          label="Roles configurados"
-          value={roles.length}
-          icon={<ShieldCheck size={18} />}
+          label="Total roles"
+          value={meta.total}
+          icon={
+            <UsersRound
+              size={18}
+            />
+          }
         />
 
         <SummaryItem
-          label="Acceso administrativo"
+          label="Activos"
           value={
-            roles.filter((role) =>
-              role.name
-                .toLowerCase()
-                .includes("admin"),
+            items.filter(
+              (role) => role.active,
             ).length
           }
-          icon={<UserCog size={18} />}
+          icon={
+            <UserRound
+              size={18}
+            />
+          }
         />
 
         <SummaryItem
-          label="Perfiles operativos"
+          label="Inactivos"
           value={
-            roles.filter((role) => {
-              const name =
-                role.name.toLowerCase();
-
-              return (
-                !name.includes("admin") &&
-                !name.includes("lectura")
-              );
-            }).length
+            items.length -
+            items.filter(
+              (role) => role.active,
+            ).length
           }
-          icon={<UsersRound size={18} />}
+          icon={
+            <ShieldCheck
+              size={18}
+            />
+          }
         />
       </div>
 
       {/* =====================================================
-          INFORMACIÓN
+          BUSCADOR
       ===================================================== */}
 
-      <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-            <Shield size={18} />
-          </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="relative max-w-xl">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          />
 
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Control de acceso
-            </h2>
-
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-              Cada usuario debe tener un rol asociado. El rol determina qué
-              módulos y operaciones puede utilizar dentro del inventario.
-            </p>
-          </div>
+          <Input
+            value={search}
+            onChange={(e) =>
+              setSearch(
+                e.target.value,
+              )
+            }
+            placeholder="Buscar por nombre o descripción..."
+            className="pl-9"
+          />
         </div>
       </section>
 
       {/* =====================================================
-          LISTADO
+          TABLA
       ===================================================== */}
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Spinner className="h-8 w-8 text-emerald-700" />
-        </div>
-      ) : roles.length === 0 ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="min-h-[280px]">
-            <EmptyState
-              title="Sin roles"
-              description="No existen roles configurados en el sistema."
-            />
-          </div>
-        </section>
-      ) : (
-        <section>
-          <div className="mb-4">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
             <h2 className="text-sm font-semibold text-slate-900">
-              Roles disponibles
+              Roles del sistema
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Revisa el propósito de cada rol y administra su asignación.
+              Permisos y capacidades de cada rol.
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {roles.map((role) => {
-              const config =
-                getRoleVisual(role.name);
+          {!loading && (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {
+                filteredItems.length
+              }{" "}
+              visibles
+            </span>
+          )}
+        </div>
 
-              const label =
-                ROLE_LABELS[
-                  role.name as keyof typeof ROLE_LABELS
-                ] ??
-                role.name;
+        {loading ? (
+          <div className="flex min-h-[260px] items-center justify-center">
+            <Spinner className="h-8 w-8 text-emerald-700" />
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="min-h-[280px]">
+            <EmptyState
+              title={
+                search
+                  ? "No se encontraron roles"
+                  : "Sin roles"
+              }
+              description={
+                search
+                  ? "Prueba con otro nombre o descripción."
+                  : "Crea un rol para comenzar."
+              }
+            />
+          </div>
+        ) : (
+          <Table
+            head={
+              <>
+                <Th>
+                  Nombre
+                </Th>
 
-              return (
-                <article
-                  key={role.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md"
-                >
-                  {/* TOP */}
+                <Th>
+                  Descripción
+                </Th>
 
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div
-                          className={[
-                            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-                            config.iconClass,
-                          ].join(" ")}
-                        >
-                          {config.icon}
-                        </div>
+                <Th>
+                  Estado
+                </Th>
 
-                        <div>
-                          <h3 className="text-base font-semibold text-slate-900">
-                            {label}
-                          </h3>
+                <Th></Th>
+              </>
+            }
+          >
+            {filteredItems.map(
+              (role) => {
+                return (
+                  <tr
+                    key={
+                      role.id
+                    }
+                    className={[
+                      "border-b border-slate-100 transition-colors last:border-b-0",
+                      role.active
+                        ? "hover:bg-slate-50/80"
+                        : "bg-slate-50/60 opacity-65",
+                    ].join(
+                      " ",
+                    )}
+                  >
+                    {/* NOMBRE */}
 
-                          <p className="mt-1 font-mono text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            {role.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span
-                        className={[
-                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                          config.badgeClass,
-                        ].join(" ")}
-                      >
-                        {config.level}
-                      </span>
-                    </div>
-
-                    {/* DESCRIPTION */}
-
-                    <p className="mt-4 min-h-[40px] text-sm leading-6 text-slate-500">
-                      {role.description ||
-                        config.description}
-                    </p>
-
-                    {/* ACCESS */}
-
-                    <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                        Alcance principal
+                    <Td>
+                      <p className="font-medium text-slate-900">
+                        {role.name}
                       </p>
 
-                      <div className="mt-3 space-y-2">
-                        {config.capabilities.map(
-                          (capability) => (
-                            <div
-                              key={capability}
-                              className="flex items-center gap-2 text-xs text-slate-600"
-                            >
-                              <span
-                                className={[
-                                  "h-1.5 w-1.5 rounded-full",
-                                  config.dotClass,
-                                ].join(" ")}
-                              />
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        {role.description || "Sin descripción"}
+                      </p>
+                    </Td>
 
-                              {capability}
-                            </div>
-                          ),
-                        )}
+                    {/* DESCRIPCIÓN */}
+
+                    {/* ESTADO */}
+
+                    <Td>
+                      {role.active ? (
+                        <Badge tone="green">
+                          Activo
+                        </Badge>
+                      ) : (
+                        <Badge tone="slate">
+                          Inactivo
+                        </Badge>
+                      )}
+                    </Td>
+
+                    {/* ACCIONES */}
+
+                    <Td>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEdit(
+                              role,
+                            )
+                          }
+                          title="Editar rol"
+                          aria-label="Editar rol"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition hover:bg-sky-100 hover:text-sky-700"
+                        >
+                          <Pencil
+                            size={15}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteRole(role.id!)
+                          }
+                          title="Eliminar rol"
+                          aria-label="Eliminar rol"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100 hover:text-red-700"
+                        >
+                          <Trash
+                            size={15}
+                          />
+                        </button>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* FOOTER */}
-
-                  <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <UsersRound size={14} />
-
-                      Usuarios asignados
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() =>
-                        notify(
-                          `Selecciona un usuario para asignarle el rol ${label}`,
-                        )
-                      }
-                    >
-                      <UserCog size={14} />
-
-                      Reasignar
-                    </Button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                    </Td>
+                  </tr>
+                );
+              },
+            )}
+          </Table>
+        )}
+      </section>
 
       {/* =====================================================
-          NOTA
+          PAGINACIÓN
       ===================================================== */}
 
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-        <p className="text-xs leading-5 text-slate-500">
-          Los roles definen niveles generales de acceso. Los permisos efectivos
-          deben seguir validándose en el backend; ocultar una opción en la
-          interfaz no reemplaza la autorización del servidor.
-        </p>
-      </section>
+      <Pagination
+        page={meta.page}
+        totalPages={
+          meta.totalPages
+        }
+        total={meta.total}
+        onChange={setPage}
+      />
+
+      {/* =====================================================
+          MODAL
+      ===================================================== */}
+
+      <Modal
+        open={modalOpen}
+        onClose={() => {
+          if (!busy) {
+            setModalOpen(
+              false,
+            );
+          }
+        }}
+        title={
+          editing
+            ? "Editar rol"
+            : "Nuevo rol"
+        }
+      >
+        <form
+          onSubmit={submit}
+          className="space-y-5"
+        >
+          {/* NOMBRE */}
+
+          <Field
+            label="Nombre"
+            required
+          >
+            <Input
+              value={form.name}
+              onChange={(e) =>
+                setForm(
+                  (current) => ({
+                    ...current,
+                    name:
+                      e.target
+                        .value,
+                  }),
+                )
+              }
+              placeholder="Ej.: Administrador"
+              required
+            />
+          </Field>
+
+          {/* DESCRIPCIÓN */}
+
+          <Field
+            label="Descripción"
+            required
+          >
+            <Input
+              value={form.description}
+              onChange={(e) =>
+                setForm(
+                  (current) => ({
+                    ...current,
+                    description:
+                      e.target
+                        .value,
+                  }),
+                )
+              }
+              placeholder="Ej.: Permisos de administrador del sistema"
+              required
+            />
+          </Field>
+
+          {/* ACTIVO */}
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-800">
+                  Rol activo
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Un rol inactivo no tendrá permisos activos.
+                </p>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={
+                  form.active
+                }
+                onChange={(e) =>
+                  setForm(
+                    (
+                      current,
+                    ) => ({
+                      ...current,
+                      active:
+                        e
+                          .target
+                          .checked,
+                    }),
+                  )
+                }
+                className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+              />
+            </label>
+          </div>
+
+          {/* FOOTER */}
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (!busy) {
+                  setModalOpen(
+                    false,
+                  );
+                }
+              }}
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              type="submit"
+              loading={busy}
+            >
+              {editing
+                ? "Guardar cambios"
+                : "Crear rol"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
 
 /* ============================================================
-   SUMMARY
+   SUMMARY ITEM
 ============================================================ */
 
 function SummaryItem({
@@ -301,243 +649,4 @@ function SummaryItem({
       </div>
     </div>
   );
-}
-
-/* ============================================================
-   ROLE VISUAL
-============================================================ */
-
-function getRoleVisual(
-  roleName: string,
-) {
-  const normalized =
-    roleName.toLowerCase();
-
-  if (
-    normalized.includes("super")
-  ) {
-    return {
-      icon: (
-        <ShieldCheck size={21} />
-      ),
-
-      iconClass:
-        "bg-violet-50 text-violet-700",
-
-      badgeClass:
-        "bg-violet-50 text-violet-700",
-
-      dotClass:
-        "bg-violet-500",
-
-      level:
-        "Acceso total",
-
-      description:
-        "Control completo sobre configuración, usuarios, inventario y operaciones administrativas.",
-
-      capabilities: [
-        "Administración completa del sistema",
-        "Gestión de usuarios y roles",
-        "Acceso total al inventario",
-      ],
-    };
-  }
-
-  if (
-    normalized.includes(
-      "administrador",
-    )
-  ) {
-    return {
-      icon: (
-        <UserCog size={21} />
-      ),
-
-      iconClass:
-        "bg-indigo-50 text-indigo-700",
-
-      badgeClass:
-        "bg-indigo-50 text-indigo-700",
-
-      dotClass:
-        "bg-indigo-500",
-
-      level:
-        "Administrativo",
-
-      description:
-        "Gestión administrativa del inventario y de las configuraciones operativas.",
-
-      capabilities: [
-        "Crear y modificar bienes",
-        "Gestionar ubicaciones y categorías",
-        "Consultar reportes y movimientos",
-      ],
-    };
-  }
-
-  if (
-    normalized.includes(
-      "direccion",
-    ) ||
-    normalized.includes(
-      "dirección",
-    )
-  ) {
-    return {
-      icon: (
-        <Building2 size={21} />
-      ),
-
-      iconClass:
-        "bg-sky-50 text-sky-700",
-
-      badgeClass:
-        "bg-sky-50 text-sky-700",
-
-      dotClass:
-        "bg-sky-500",
-
-      level:
-        "Supervisión",
-
-      description:
-        "Perfil orientado a supervisión institucional, consulta y seguimiento del inventario.",
-
-      capabilities: [
-        "Consultar inventario",
-        "Revisar estados y ubicaciones",
-        "Acceder a información de gestión",
-      ],
-    };
-  }
-
-  if (
-    normalized.includes(
-      "encargado",
-    )
-  ) {
-    return {
-      icon: (
-        <BriefcaseBusiness
-          size={21}
-        />
-      ),
-
-      iconClass:
-        "bg-emerald-50 text-emerald-700",
-
-      badgeClass:
-        "bg-emerald-50 text-emerald-700",
-
-      dotClass:
-        "bg-emerald-500",
-
-      level:
-        "Operativo avanzado",
-
-      description:
-        "Responsable de la operación cotidiana del inventario y de sus movimientos.",
-
-      capabilities: [
-        "Registrar y actualizar bienes",
-        "Realizar traslados",
-        "Importar y exportar información",
-      ],
-    };
-  }
-
-  if (
-    normalized.includes(
-      "funcionario",
-    )
-  ) {
-    return {
-      icon: (
-        <UserRound size={21} />
-      ),
-
-      iconClass:
-        "bg-teal-50 text-teal-700",
-
-      badgeClass:
-        "bg-teal-50 text-teal-700",
-
-      dotClass:
-        "bg-teal-500",
-
-      level:
-        "Operativo",
-
-      description:
-        "Perfil para consulta y operaciones autorizadas desde web o aplicación móvil.",
-
-      capabilities: [
-        "Consultar bienes",
-        "Registrar movimientos autorizados",
-        "Ver ubicación y estado",
-      ],
-    };
-  }
-
-  if (
-    normalized.includes(
-      "lectura",
-    )
-  ) {
-    return {
-      icon: (
-        <Eye size={21} />
-      ),
-
-      iconClass:
-        "bg-slate-100 text-slate-600",
-
-      badgeClass:
-        "bg-slate-100 text-slate-600",
-
-      dotClass:
-        "bg-slate-400",
-
-      level:
-        "Solo consulta",
-
-      description:
-        "Acceso exclusivamente de lectura, sin capacidad para modificar información.",
-
-      capabilities: [
-        "Consultar inventario",
-        "Consultar ubicaciones",
-        "Sin permisos de edición",
-      ],
-    };
-  }
-
-  return {
-    icon: (
-      <Shield size={21} />
-    ),
-
-    iconClass:
-      "bg-slate-100 text-slate-600",
-
-    badgeClass:
-      "bg-slate-100 text-slate-600",
-
-    dotClass:
-      "bg-slate-400",
-
-    level:
-      "Personalizado",
-
-    description:
-      "Rol configurado para un conjunto específico de responsabilidades.",
-
-    capabilities: [
-      "Acceso según permisos asignados",
-      "Configuración administrable",
-      "Aplicación de permisos desde backend",
-    ],
-  };
 }

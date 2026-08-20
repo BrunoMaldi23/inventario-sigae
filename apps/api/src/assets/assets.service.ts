@@ -72,11 +72,11 @@ export function serializeAsset(a: AssetWithRelations): AssetDTO {
     status: a.status
       ? { id: a.status.id, name: a.status.name, color: a.status.color, sortOrder: a.status.sortOrder, active: a.status.active }
       : null,
-    location: a.location
+location: a.location
       ? {
           id: a.location.id,
           name: a.location.name,
-          type: a.location.type,
+          type: a.location.type as import('@inventario/types').LocationType,
           parentId: a.location.parentId,
           active: a.location.active,
           description: a.location.description,

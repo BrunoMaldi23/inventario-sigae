@@ -317,13 +317,7 @@ export function AppShell({
             [scrollbar-width:none]
           "
         >
-          <div className="mb-3 px-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Gestión
-            </p>
-          </div>
-
-          <nav className="space-y-1">
+<nav className="space-y-1">
             {items.map(
               (item) => (
                 <NavLink

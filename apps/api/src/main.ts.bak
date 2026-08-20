@@ -23,10 +23,7 @@ async function bootstrap() {
     if (!origin) return true;
     if (corsOrigins.includes(origin)) return true;
     const host = new URL(origin).hostname.toLowerCase();
-    if (host === 'vercel.app') return true;
-    if (host.endsWith('.vercel.app')) return true;
-    if (host.endsWith('.ts.net')) return true;
-    return false;
+    return host === 'vercel.app' || host.endsWith('.vercel.app') || host.endsWith('.ts.net');
   };
 
   app.enableCors({
@@ -69,8 +66,8 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
-  logger.log('API escuchando en http://localhost:/api');
-  logger.log('Swagger disponible en http://localhost:/api/docs');
+  logger.log(`API escuchando en http://localhost:${port}/api`);
+  logger.log(`Swagger disponible en http://localhost:${port}/api/docs`);
 }
 
 void bootstrap();

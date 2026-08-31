@@ -1,6 +1,6 @@
 "use client";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 const TOKEN_KEY = "inv_access_token";
 const REFRESH_KEY = "inv_refresh_token";

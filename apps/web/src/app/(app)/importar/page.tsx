@@ -51,6 +51,30 @@ interface ImportPreview {
     message: string;
     level: "error" | "warning";
   }[];
+
+  // Datos parseados de las filas (solo para preview)
+  rows: ParsedImportRow[];
+}
+
+interface ParsedImportRow {
+  row: number;
+  assetCode?: string;
+  name?: string;
+  description?: string;
+  brand?: string;
+  model?: string;
+  serialNumber?: string;
+  statusId?: string;
+  statusName?: string;
+  categoryId?: string;
+  locationId?: string;
+  responsibleId?: string;
+  issues: {
+    row: number;
+    code: string;
+    message: string;
+    level: "error" | "warning";
+  }[];
 }
 
 interface ImportJobItem {
@@ -124,7 +148,7 @@ export default function ImportarPage() {
         .endsWith(".xlsx") &&
       !file.name
         .toLowerCase()
-        .endsWith(".xls")
+        .endsWith(".xlsm")
     ) {
       notify(
         "Seleccione un archivo Excel válido.",
@@ -392,7 +416,7 @@ export default function ImportarPage() {
 
                 <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
                   <FileSpreadsheet size={14} />
-                  XLSX / XLS · Máximo 20 MB
+                  XLSX / XLSM · Máximo 20 MB
                 </div>
               </>
             )}
@@ -400,7 +424,7 @@ export default function ImportarPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xlsm"
               className="hidden"
               disabled={uploading}
               onChange={(e) => {

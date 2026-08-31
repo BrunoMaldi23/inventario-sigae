@@ -3,6 +3,13 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Edit3,
+  MoveRight,
+  Printer,
+  ShieldCheck,
+} from "lucide-react";
 import { useData } from "@/hooks/use-fetch";
 import { useToast } from "@/components/toast";
 import { useAuth } from "@/components/auth-provider";
@@ -52,88 +59,181 @@ export default function FichaBienPage() {
     );
   }
 
-  return (
-    <div>
-      <PageHeader
-        title={asset.name}
-        description={`${asset.assetCode}${asset.brand ? ` · ${asset.brand}${asset.model ? " " + asset.model : ""}` : ""}`}
-        actions={
-          <>
-            <Link href="/inventario" className="rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-600 ring-1 ring-slate-300 hover:bg-slate-50">
-              ← Inventario
-            </Link>
-            {canUpdate && (
-              <Button variant="secondary" onClick={() => setEditOpen(true)}>Editar</Button>
-            )}
-          </>
-        }
-      />
+  const hm = extractImportedHeader(asset.description);
+  const cleanDescription = visibleDescription(asset.description);
+  const codeParts = splitAssetCode(asset.assetCode);
+  const officialLocation = asset.location?.path ?? asset.location?.name ?? hm.sourceLocation ?? "Sin ubicación";
+  const responsibleName = asset.responsible?.name ?? "Sin responsable";
+  const usefulSpecs = [
+    { label: "Marca", value: asset.brand },
+    { label: "Modelo", value: asset.model },
+    { label: "N° de serie", value: asset.serialNumber },
+    { label: "Código de barras", value: asset.barcode },
+    { label: "Adquisición", value: formatDate(asset.acquisitionDate) },
+    { label: "Valor", value: formatCurrency(asset.acquisitionValue) },
+    { label: "Proveedor", value: asset.supplier },
+    { label: "Factura", value: asset.invoiceNumber },
+    { label: "O. de compra", value: asset.purchaseOrder },
+    { label: "Financiamiento", value: asset.fundingSource },
+    { label: "Procedencia", value: asset.provenance },
+  ].filter((item) => hasText(item.value));
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Ficha">
-          <dl className="space-y-3 text-sm">
-            <Row label="Estado">{asset.status ? <Badge>{asset.status.name}</Badge> : "—"}</Row>
-            <Row label="Categoría">{asset.category?.name ?? "—"}</Row>
-            <Row label="Ubicación">{asset.location?.path ?? "—"}</Row>
-            <Row label="Responsable">{asset.responsible?.name ?? "—"}</Row>
-            <Row label="N° serie">{asset.serialNumber ?? "—"}</Row>
-            <Row label="Código de barras">{asset.barcode ?? "—"}</Row>
-            <Row label="Adquisición">{formatDate(asset.acquisitionDate)}</Row>
-            <Row label="Valor">{formatCurrency(asset.acquisitionValue)}</Row>
-            <Row label="Proveedor">{asset.supplier ?? "—"}</Row>
-            <Row label="Factura">{asset.invoiceNumber ?? "—"}</Row>
-            <Row label="O. de compra">{asset.purchaseOrder ?? "—"}</Row>
-            <Row label="Financiamiento">{asset.fundingSource ?? "—"}</Row>
-            <Row label="Procedencia">{asset.provenance ?? "—"}</Row>
-            <Row label="Registrado">{formatDateTime(asset.createdAt)}</Row>
-            <Row label="Última actualización">{formatDateTime(asset.updatedAt)}</Row>
-          </dl>
-          {asset.description && <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-600">{asset.description}</p>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {canTransfer && <Button onClick={() => setTransferOpen(true)}>Trasladar</Button>}
-            {canStatus && <Button variant="secondary" onClick={() => setStatusOpen(true)}>Cambiar estado</Button>}
-            {canDelete && (
-              <Button variant="danger" onClick={() => {
-                if (!window.confirm(`¿Eliminar el bien ${asset.assetCode}? (eliminación lógica)`)) return;
-                apiDelete(`/assets/${asset.id}`)
-                  .then(() => { notify("Bien eliminado"); router.push("/inventario"); })
-                  .catch((e) => notify(e.message, "error"));
-              }}>
-                Eliminar
-              </Button>
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Ficha del inventario</p>
+          <h2 className="text-xl font-semibold text-slate-950">{asset.name}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/inventario" className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50">
+            <ArrowLeft className="h-4 w-4" />
+            Inventario
+          </Link>
+          <Button variant="secondary" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />
+            Imprimir hoja
+          </Button>
+          {canUpdate && (
+            <Button variant="secondary" onClick={() => setEditOpen(true)}>
+              <Edit3 className="h-4 w-4" />
+              Editar
+            </Button>
+          )}
+          {canTransfer && (
+            <Button onClick={() => setTransferOpen(true)}>
+              <MoveRight className="h-4 w-4" />
+              Trasladar
+            </Button>
+          )}
+          {canStatus && (
+            <Button variant="secondary" onClick={() => setStatusOpen(true)}>
+              <ShieldCheck className="h-4 w-4" />
+              Estado
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <section className="mx-auto min-h-[1120px] w-full max-w-[980px] bg-white px-[74px] py-[86px] text-black shadow-sm ring-1 ring-slate-200 print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none print:ring-0">
+        <div className="grid grid-cols-[240px_1fr_130px] items-center">
+          <div>
+            <p className="text-[10px] font-bold uppercase leading-none">Servicio local de educación pública</p>
+            <div className="mt-2 leading-[0.82]">
+              <p className="text-[32px] font-black tracking-tight">COSTA</p>
+              <p className="text-[32px] font-black tracking-tight">ARAUCANÍA</p>
+            </div>
+            <p className="mt-2 text-[9px] font-semibold leading-tight">Carahue | Nueva Imperial | Saavedra</p>
+            <p className="text-[9px] font-semibold leading-tight">Teodoro Schmidt | Toltén</p>
+          </div>
+
+          <div className="pt-20 text-center">
+            <p className="text-[13px] font-bold">Servicio Local de Educación Pública Costa Araucanía</p>
+            <p className="text-[13px] font-bold">Hoja Mural de Inventario de Bienes de Uso.</p>
+          </div>
+
+          <div className="flex justify-end">
+            {qr?.dataUrl && (
+              <div className="text-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qr.dataUrl} alt={`QR ${asset.assetCode}`} className="h-[92px] w-[92px]" />
+                <p className="mt-1 font-mono text-[7px] leading-tight">{asset.assetCode}</p>
+              </div>
             )}
           </div>
-        </Card>
+        </div>
 
-        <Card title="Código QR">
-          {qr?.dataUrl ? (
-            <div className="flex flex-col items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qr.dataUrl} alt={`QR ${asset.assetCode}`} className="h-52 w-52 rounded-md border border-slate-200" />
-              <p className="mt-2 font-mono text-xs text-slate-500">{qr.qrCode}</p>
-              <Button variant="secondary" size="sm" className="mt-3" onClick={() => window.print()}>Imprimir QR</Button>
-            </div>
-          ) : (
-            <EmptyState title="QR no disponible" />
-          )}
-        </Card>
+        <dl className="mt-16 grid max-w-[640px] grid-cols-[190px_1fr] gap-x-5 text-[13px] leading-[1.35]">
+          <SheetMeta label="Nombre de Funcionario:" value={responsibleName} />
+          <SheetMeta label="RUT:" value={hm.responsibleRut} />
+          <SheetMeta label="Dependencia:" value="Escuela Pública Alejandro Gorostiaga" />
+          <SheetMeta label="Ubicación:" value={asset.location?.name ?? hm.sourceLocation ?? officialLocation} />
+          <SheetMeta label="Piso:" value={hm.sector} />
+          <SheetMeta label="Fecha de actualización:" value={formatLongSpanishDate(asset.updatedAt)} />
+          <SheetMeta label="Página:" value="1 de 1" />
+        </dl>
 
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[830px] table-fixed border-collapse text-[11px] leading-tight">
+            <colgroup>
+              <col className="w-[46px]" />
+              <col className="w-[116px]" />
+              <col className="w-[150px]" />
+              <col className="w-[245px]" />
+              <col className="w-[78px]" />
+              <col className="w-[88px]" />
+              <col className="w-[104px]" />
+              <col className="w-[60px]" />
+            </colgroup>
+            <thead>
+              <tr className="bg-[#d9d9d9]">
+                <SheetTh>N°</SheetTh>
+                <SheetTh>Código del bien</SheetTh>
+                <SheetTh>Denominación</SheetTh>
+                <SheetTh>Descripción</SheetTh>
+                <SheetTh>Marca</SheetTh>
+                <SheetTh>Modelo</SheetTh>
+                <SheetTh>Número de serie</SheetTh>
+                <SheetTh>Estado</SheetTh>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <SheetTd center>{codeParts.sequence}</SheetTd>
+                <SheetTd center>{hm.originalCode ?? asset.assetCode}</SheetTd>
+                <SheetTd>{asset.name}</SheetTd>
+                <SheetTd>{cleanDescription || "Sin descripción registrada"}</SheetTd>
+                <SheetTd center>{asset.brand || "SIN MARCA"}</SheetTd>
+                <SheetTd center>{asset.model || ""}</SheetTd>
+                <SheetTd center>{asset.serialNumber || ""}</SheetTd>
+                <SheetTd center>{asset.status?.name ?? ""}</SheetTd>
+              </tr>
+              {usefulSpecs.length > 0 && (
+                <tr>
+                  <SheetTd center>2</SheetTd>
+                  <SheetTd center>{asset.assetCode}</SheetTd>
+                  <SheetTd>Código interno SIGAE</SheetTd>
+                  <SheetTd>{usefulSpecs.map((item) => `${item.label}: ${item.value}`).join(" | ")}</SheetTd>
+                  <SheetTd center>{asset.brand || ""}</SheetTd>
+                  <SheetTd center>{asset.model || ""}</SheetTd>
+                  <SheetTd center>{asset.barcode || ""}</SheetTd>
+                  <SheetTd center>{asset.active ? "Activo" : "Inactivo"}</SheetTd>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-5 border border-black p-2 text-[9px] leading-snug">
+          <p className="font-bold">NOTA:</p>
+          <p>Los bienes detallados en esta hoja mural deben mantenerse actualizados, visibles y asociados a su ubicación física vigente. Cualquier traslado, cambio de estado o corrección debe registrarse en el sistema de inventario institucional.</p>
+        </div>
+
+        <div className="mt-4 border border-black p-2 text-[9px] leading-snug">
+          <p className="font-bold">Datos de Responsabilidad de Bienes de Uso</p>
+          <p><span className="font-bold">A cargo de:</span> {responsibleName}</p>
+          <p><span className="font-bold">Ubicación:</span> {officialLocation}</p>
+          <p><span className="font-bold">Registro:</span> {formatDateTime(asset.createdAt)} | <span className="font-bold">Última actualización:</span> {formatDateTime(asset.updatedAt)}</p>
+        </div>
+
+        <div className="mt-10 grid grid-cols-2 gap-16 text-center text-[10px]">
+          <div className="border-t border-black pt-2">Firma funcionario responsable</div>
+          <div className="border-t border-black pt-2">Firma encargado inventario</div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-2 print:hidden">
         <Card title="Adjuntos" actions={canUpload ? <UploadButton assetId={asset.id} onUploaded={() => reloadAtt()} /> : undefined}>
           {attachments && attachments.length > 0 ? (
             <ul className="space-y-2">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span>{a.type === "PHOTO" ? "🖼️" : "📄"}</span>
-                    <span className="truncate text-slate-600">{a.filename}</span>
-                  </div>
+                  <span className="truncate text-slate-700">{a.filename}</span>
                   <div className="flex items-center gap-2">
-                    {a.url && (
-                      <a href={a.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">Ver</a>
-                    )}
+                    {a.url && <a href={a.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-indigo-600 hover:underline">Ver</a>}
                     {canDeleteAtt && (
                       <button
-                        className="text-xs text-red-500 hover:underline"
+                        className="text-xs font-medium text-red-600 hover:underline"
                         onClick={async () => {
                           try {
                             await apiDelete(`/assets/${asset.id}/attachments/${a.id}`);
@@ -153,15 +253,11 @@ export default function FichaBienPage() {
             <EmptyState title="Sin adjuntos" description="Fotografías y documentos del bien" />
           )}
         </Card>
-      </div>
 
-      <div className="mt-6">
         <Card title="Historial de movimientos">
           {history && history.movements.length > 0 ? (
             <ol className="relative space-y-4 border-l border-slate-200 pl-5">
-              {history.movements.map((m) => (
-                <MovementItem key={m.id} m={m} />
-              ))}
+              {history.movements.map((m) => <MovementItem key={m.id} m={m} />)}
             </ol>
           ) : (
             <EmptyState title="Sin movimientos" description="Este bien no tiene historial de movimientos" />
@@ -180,12 +276,93 @@ export default function FichaBienPage() {
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function hasText(value?: string | number | null): value is string | number {
+  return value !== null && value !== undefined && String(value).trim() !== "" && String(value).trim() !== "—";
+}
+
+function extractImportedHeader(description?: string | null) {
+  const chunks = (description ?? "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const take = (label: string) => {
+    const found = chunks.find((part) => part.toLowerCase().startsWith(label.toLowerCase()));
+    return found?.slice(label.length).replace(/^:\s*/, "").trim() || undefined;
+  };
+
+  const plainDescription = chunks.find((part) => !/^(Código original|Ubicación detalle origen|Piso\/Sector|Sector|RUT responsable):/i.test(part));
+
+  return {
+    originalCode: take("Código original"),
+    sourceLocation: take("Ubicación detalle origen"),
+    sector: take("Piso/Sector") ?? take("Sector"),
+    responsibleRut: take("RUT responsable"),
+    plainDescription,
+  };
+}
+
+function visibleDescription(description?: string | null) {
+  return extractImportedHeader(description).plainDescription;
+}
+
+function splitAssetCode(assetCode: string) {
+  const match = assetCode.match(/^([A-Za-z]+)(.*?)(\d+)$/);
+  if (!match) {
+    const [prefix = assetCode, ...rest] = assetCode.split("-");
+    return { prefix, sequence: rest.join("-") || assetCode };
+  }
+  return {
+    prefix: match[1],
+    sequence: match[3],
+  };
+}
+
+function statusTone(status?: string | null): "green" | "amber" | "red" | "slate" | "indigo" {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized.includes("bueno")) return "green";
+  if (normalized.includes("regular") || normalized.includes("mantención") || normalized.includes("repar")) return "amber";
+  if (normalized.includes("malo") || normalized.includes("baja") || normalized.includes("extraviado")) return "red";
+  return "slate";
+}
+
+function StatusPill({ status }: { status?: string | null }) {
+  return <Badge tone={statusTone(status)}>{status || "Sin estado"}</Badge>;
+}
+
+function formatLongSpanishDate(value?: string | null) {
+  if (!value) return "Sin fecha";
+  return new Date(value).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function SheetMeta({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-800">{children}</dd>
-    </div>
+    <>
+      <dt>{label}</dt>
+      <dd>{value || "Sin dato"}</dd>
+    </>
+  );
+}
+
+function SheetTh({ children }: { children: React.ReactNode }) {
+  return <th className="border border-black px-1.5 py-2 text-center font-bold">{children}</th>;
+}
+
+function SheetTd({
+  children,
+  center,
+}: {
+  children: React.ReactNode;
+  center?: boolean;
+}) {
+  return (
+    <td className={`border border-black px-1.5 py-1 align-top ${center ? "text-center" : ""}`}>
+      {children}
+    </td>
   );
 }
 

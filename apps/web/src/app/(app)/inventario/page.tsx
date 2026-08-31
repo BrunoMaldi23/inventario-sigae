@@ -37,6 +37,19 @@ import {
   LocationDTO,
 } from "@/lib/types";
 
+interface LocationInventoryGroup {
+  id: string;
+  name: string;
+  path: string;
+  type: string;
+  active: boolean;
+  description?: string | null;
+  assetCount: number;
+  mainStatus?: string | null;
+  mainResponsible?: string | null;
+  latestUpdate?: string | null;
+}
+
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
   const { notify } = useToast();
@@ -60,7 +73,7 @@ export default function InventarioPage() {
     loading,
     setPage,
     setParam,
-  } = usePage<AssetDTO>("/assets", {
+  } = usePage<LocationInventoryGroup>("/assets/locations", {
     categoryId: categoryId || undefined,
     statusId: statusId || undefined,
     locationId: locationId || undefined,
@@ -76,10 +89,7 @@ export default function InventarioPage() {
   const { data: locations } =
     useData<LocationDTO[]>("/locations?active=true");
 
-  const selectedSel = useMemo(
-    () => items.filter((item) => bulkIds.includes(item.id)),
-    [items, bulkIds],
-  );
+  const selectedSel = useMemo(() => [] as AssetDTO[], []);
 
   async function submitBulk() {
     if (!bulkTarget || !bulkReason.trim()) {
@@ -123,7 +133,7 @@ export default function InventarioPage() {
   }
 
   function openBulkTransfer() {
-    setBulkIds(items.map((item) => item.id));
+    setBulkIds([]);
     setBulkOpen(true);
   }
 
@@ -137,8 +147,8 @@ export default function InventarioPage() {
         title="Inventario"
         description={
           meta.total === 1
-            ? "1 bien registrado"
-            : `${meta.total} bienes registrados`
+            ? "1 ubicación con inventario"
+            : `${meta.total} ubicaciones con inventario`
         }
         actions={
           canCreate ? (
@@ -174,7 +184,7 @@ export default function InventarioPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryItem
           icon={<Boxes size={18} />}
-          label="Bienes encontrados"
+          label="Ubicaciones encontradas"
           value={meta.total}
         />
 
@@ -186,17 +196,15 @@ export default function InventarioPage() {
 
         <SummaryItem
           icon={<MapPin size={18} />}
-          label="Con ubicación"
-          value={
-            items.filter((item) => item.location).length
-          }
+          label="Bienes en ubicaciones visibles"
+          value={items.reduce((total, item) => total + item.assetCount, 0)}
         />
 
         <SummaryItem
           icon={<UserRound size={18} />}
-          label="Con responsable"
+          label="Con responsable principal"
           value={
-            items.filter((item) => item.responsible).length
+            items.filter((item) => item.mainResponsible).length
           }
         />
       </div>
@@ -220,7 +228,7 @@ export default function InventarioPage() {
             </div>
 
             <p className="mt-1 text-xs text-slate-500">
-              Encuentra bienes por código, categoría, estado o ubicación.
+              Encuentra ubicaciones por nombre, código, categoría, estado o bien contenido.
             </p>
           </div>
 
@@ -335,33 +343,6 @@ export default function InventarioPage() {
       </section>
 
       {/* =====================================================
-          ACCIONES MASIVAS
-      ===================================================== */}
-
-      {canTransfer && items.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-slate-800">
-              Acciones sobre los bienes visibles
-            </p>
-
-            <p className="text-xs text-slate-500">
-              Puedes trasladar todos los bienes mostrados en esta página.
-            </p>
-          </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={openBulkTransfer}
-          >
-            <ArrowRightLeft size={15} />
-            Trasladar visibles
-          </Button>
-        </div>
-      )}
-
-      {/* =====================================================
           RESULTADOS
       ===================================================== */}
 
@@ -369,11 +350,11 @@ export default function InventarioPage() {
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">
-              Bienes registrados
+              Ubicaciones registradas
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Consulta ubicación, estado y responsable actual.
+              Cada fila abre la ficha mural con todos los bienes de esa ubicación.
             </p>
           </div>
 
@@ -391,7 +372,7 @@ export default function InventarioPage() {
         ) : items.length === 0 ? (
           <div className="min-h-[300px]">
             <EmptyState
-              title="No se encontraron bienes"
+              title="No se encontraron ubicaciones"
               description="Ajusta los filtros o registra un nuevo bien para comenzar."
             />
           </div>
@@ -399,75 +380,25 @@ export default function InventarioPage() {
           <Table
             head={
               <>
-                <Th>Código</Th>
-                <Th>Bien</Th>
-                <Th>Categoría</Th>
-                <Th>Estado</Th>
                 <Th>Ubicación</Th>
-                <Th>Responsable</Th>
-                <Th>Adquisición</Th>
+                <Th>Bienes</Th>
+                <Th>Estado predominante</Th>
+                <Th>Responsable principal</Th>
+                <Th>Última actualización</Th>
                 <Th></Th>
               </>
             }
           >
-            {items.map((asset) => (
+            {items.map((group) => (
               <tr
-                key={asset.id}
+                key={group.id}
                 className={[
                   "border-b border-slate-100 transition-colors last:border-b-0",
-                  asset.active
+                  group.active
                     ? "hover:bg-slate-50/80"
                     : "bg-slate-50/50 opacity-60",
                 ].join(" ")}
               >
-                <Td>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-mono text-xs font-semibold text-slate-900">
-                      {asset.assetCode}
-                    </span>
-
-                    {!asset.active && (
-                      <div>
-                        <Badge tone="slate">
-                          Inactivo
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </Td>
-
-                <Td>
-                  <div className="max-w-[220px]">
-                    <p className="truncate font-medium text-slate-900">
-                      {asset.name}
-                    </p>
-
-                    {(asset.brand || asset.model) && (
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {[asset.brand, asset.model]
-                          .filter(Boolean)
-                          .join(" ")}
-                      </p>
-                    )}
-                  </div>
-                </Td>
-
-                <Td>
-                  <span className="text-slate-600">
-                    {asset.category?.name ?? "—"}
-                  </span>
-                </Td>
-
-                <Td>
-                  <Badge
-                    tone={toneForStatus(
-                      asset.status?.name,
-                    )}
-                  >
-                    {asset.status?.name ?? "—"}
-                  </Badge>
-                </Td>
-
                 <Td>
                   <div className="flex items-start gap-1.5 text-slate-600">
                     <MapPin
@@ -475,62 +406,33 @@ export default function InventarioPage() {
                       className="mt-0.5 shrink-0 text-slate-400"
                     />
 
-                    <span>
-                      {asset.location?.path ?? "Sin ubicación"}
-                    </span>
+                    <div>
+                      <p className="font-semibold text-slate-900">{group.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{group.path}</p>
+                    </div>
                   </div>
                 </Td>
 
                 <Td>
-                  <div className="flex items-start gap-1.5 text-slate-600">
-                    <UserRound
-                      size={13}
-                      className="mt-0.5 shrink-0 text-slate-400"
-                    />
-
-                    <span>
-                      {asset.responsible?.name ??
-                        "Sin responsable"}
-                    </span>
-                  </div>
+                  <span className="font-semibold text-slate-900">{group.assetCount}</span>
                 </Td>
 
                 <Td>
-                  <span className="text-slate-600">
-                    {formatDate(asset.acquisitionDate)}
-                  </span>
+                  <Badge tone={toneForStatus(group.mainStatus)}>{group.mainStatus ?? "—"}</Badge>
+                </Td>
+
+                <Td>
+                  <span className="text-slate-600">{group.mainResponsible ?? "Sin responsable"}</span>
+                </Td>
+
+                <Td>
+                  <span className="text-slate-600">{formatDate(group.latestUpdate)}</span>
                 </Td>
 
                 <Td>
                   <div className="flex items-center justify-end gap-2">
-                    {canTransfer && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBulkIds([asset.id]);
-                          setBulkOpen(true);
-                        }}
-                        className="
-                          inline-flex
-                          items-center
-                          gap-1
-                          rounded-lg
-                          px-2.5
-                          py-1.5
-                          text-xs
-                          font-semibold
-                          text-emerald-700
-                          transition
-                          hover:bg-emerald-50
-                        "
-                      >
-                        <ArrowRightLeft size={13} />
-                        Trasladar
-                      </button>
-                    )}
-
                     <Link
-                      href={`/inventario/${asset.id}`}
+                      href={`/inventario/ubicacion/${group.id}`}
                       className="
                         rounded-lg
                         px-2.5

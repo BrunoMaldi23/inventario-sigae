@@ -38,7 +38,7 @@ export interface AssetStatusDTO {
 export interface LocationDTO {
   id: string;
   name: string;
-  type: "building" | "floor" | "classroom" | "office" | "warehouse" | "library" | "laboratory" | "gym" | "common_area" | "other";
+  type: "building" | "cycle" | "floor" | "classroom" | "office" | "warehouse" | "library" | "laboratory" | "gym" | "common_area" | "other";
   parentId: string | null;
   path?: string | null;
   active: boolean;
@@ -235,6 +235,7 @@ export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
 
 export const LOCATION_TYPE_LABELS: Record<string, string> = {
   building: "Edificio",
+  cycle: "Ciclo",
   floor: "Piso",
   classroom: "Sala",
   office: "Oficina",

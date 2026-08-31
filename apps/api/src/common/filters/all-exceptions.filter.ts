@@ -66,19 +66,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (!body.details && body.code === 'BAD_REQUEST') {
         body.code = HTTP_ERROR_CODES[status] ?? 'HTTP_ERROR';
       }
-    } else if (
-      exception instanceof Prisma.PrismaClientKnownRequestError ||
-      (exception as { code?: string })?.code === 'P2002'
-    ) {
+    } else if ((exception as { code?: string })?.code === 'P2002') {
       status = HttpStatus.CONFLICT;
       body.code = 'CONFLICT';
       body.message = 'Registro duplicado: ya existe un recurso con los mismos datos únicos.';
       this.logger.warn(`Prisma P2002 en ${request.method} ${request.url}`);
-    } else if (
-      (exception as { name?: string })?.name === 'PrismaClientKnownRequestError'
-    ) {
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      body.code = 'DATABASE_ERROR';
+      body.code = exception.code;
+      body.message = 'Error de base de datos';
+      body.details = exception.meta;
+      this.logger.error(
+        `Prisma ${exception.code} en ${request.method} ${request.url}: ${exception.message}`,
+        exception.stack,
+      );
+    } else if ((exception as { name?: string })?.name === 'PrismaClientKnownRequestError') {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      body.code = (exception as { code?: string }).code ?? 'DATABASE_ERROR';
       body.message = 'Error de base de datos';
     }
 

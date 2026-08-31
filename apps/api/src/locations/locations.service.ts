@@ -25,6 +25,20 @@ export function locationPath(location: { name: string; parent?: { name: string }
   return location.name;
 }
 
+function fullLocationPath(location: { id: string; name: string; parentId?: string | null }, byId: Map<string, { id: string; name: string; parentId?: string | null }>): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  let current: { id: string; name: string; parentId?: string | null } | undefined = location;
+
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    names.unshift(current.name);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+
+  return names.join(' / ');
+}
+
 @Injectable()
 export class LocationsService {
   constructor(
@@ -36,22 +50,36 @@ export class LocationsService {
     const all = await this.prisma.location.findMany({
       where: { active: true },
       orderBy: { name: 'asc' },
-      include: { _count: { select: { assets: true } } },
     });
-    return all.map((l) => ({ ...serialize(l), assetCount: l._count.assets }));
+    const assetCounts = await this.getActiveAssetCounts(all.map((l) => l.id));
+    const byId = new Map(all.map((l) => [l.id, l]));
+
+    return all
+      .map((l) => ({
+        ...serialize(l),
+        path: fullLocationPath(l, byId),
+        assetCount: assetCounts.get(l.id) ?? 0,
+      }))
+      .sort((a, b) => (a.path ?? a.name).localeCompare(b.path ?? b.name, 'es'));
   }
 
   async findTree(): Promise<LocationTreeNode[]> {
     const all = await this.prisma.location.findMany({
       where: { active: true },
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { assets: true } } },
     });
+    const assetCounts = await this.getActiveAssetCounts(all.map((l) => l.id));
+    const byId = new Map(all.map((l) => [l.id, l]));
 
     const map = new Map<string, LocationTreeNode>(
       all.map((l) => [
         l.id,
-        { ...serialize(l), assetCount: l._count.assets, children: [] },
+        {
+          ...serialize(l),
+          path: fullLocationPath(l, byId),
+          assetCount: assetCounts.get(l.id) ?? 0,
+          children: [],
+        },
       ]),
     );
 
@@ -154,5 +182,25 @@ export class LocationsService {
       orderBy: { name: 'asc' },
     });
     return list.map(serialize);
+  }
+
+  private async getActiveAssetCounts(locationIds: string[]) {
+    if (locationIds.length === 0) return new Map<string, number>();
+
+    const rows = await this.prisma.asset.groupBy({
+      by: ['locationId'],
+      where: {
+        active: true,
+        deletedAt: null,
+        locationId: { in: locationIds },
+      },
+      _count: { _all: true },
+    });
+
+    return new Map(
+      rows
+        .filter((row) => row.locationId)
+        .map((row) => [row.locationId!, row._count._all]),
+    );
   }
 }

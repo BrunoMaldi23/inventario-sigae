@@ -69,8 +69,8 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
-  logger.log('API escuchando en http://localhost:/api');
-  logger.log('Swagger disponible en http://localhost:/api/docs');
+  logger.log(`API escuchando en http://localhost:${port}/api`);
+  logger.log(`Swagger disponible en http://localhost:${port}/api/docs`);
 }
 
 void bootstrap();

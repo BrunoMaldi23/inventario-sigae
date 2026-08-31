@@ -23,7 +23,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async withTransaction<T>(fn: (tx: TransactionClient) => Promise<T>, maxRetries = 3): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.$transaction(fn);
+        return await this.$transaction(fn, { maxWait: 10_000, timeout: 600_000 });
       } catch (err) {
         const isRetryable =
           err instanceof Error &&

@@ -3,7 +3,7 @@ import { Response } from 'express';
 import * as ExcelJS from 'exceljs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { EXCEL_EXPORT_FILENAME_PREFIX } from '@inventario/config';
+import { ASSET_CODE_PREFIX, EXCEL_EXPORT_FILENAME_PREFIX } from '@inventario/config';
 
 const HEADERS = [
   'Código del bien',
@@ -158,11 +158,19 @@ export class ExportsService {
 
   async exportTemplate(res: Response): Promise<void> {
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Plantilla');
+    workbook.creator = 'Inventario Escolar';
+    workbook.created = new Date();
+    workbook.modified = new Date();
+
+    const sheet = workbook.addWorksheet('Plantilla', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
     sheet.columns = [
       { header: 'N°', key: 'n', width: 8 },
-      { header: 'Código del bien', key: 'codigo', width: 18 },
-      { header: 'Denominación', key: 'denominacion', width: 30 },
+      { header: 'Código del bien', key: 'codigoBien', width: 18 },
+      { header: 'Denominación', key: 'denominacion', width: 16 },
+      { header: 'Código de Inventario', key: 'codigoInventario', width: 22 },
+      { header: 'Nombre', key: 'nombre', width: 28 },
       { header: 'Descripción', key: 'descripcion', width: 40 },
       { header: 'Marca', key: 'marca', width: 16 },
       { header: 'Modelo', key: 'modelo', width: 16 },
@@ -170,17 +178,83 @@ export class ExportsService {
       { header: 'Estado', key: 'estado', width: 18 },
       { header: 'Categoría', key: 'categoria', width: 18 },
       { header: 'Ubicación', key: 'ubicacion', width: 22 },
+      { header: 'Responsable', key: 'responsable', width: 26 },
     ];
-    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+    sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-    const statuses = await this.prisma.assetStatus.findMany({ where: { active: true } });
-    const row2 = sheet.addRow([1, 'INV-000001', 'Silla escolar', 'Silla azul', 'Marca X', 'Modelo Y', 'SN-0001', 'Bueno', 'Mobiliario', '3° B']);
+    const [statuses, categories, locations, responsables] = await Promise.all([
+      this.prisma.assetStatus.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.assetCategory.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      this.prisma.location.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      this.prisma.responsible.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    ]);
+
+    const sampleInventoryCode = '900001';
+    const row2 = sheet.addRow({
+      n: 1,
+      codigoBien: `${ASSET_CODE_PREFIX}-${sampleInventoryCode}`,
+      denominacion: ASSET_CODE_PREFIX,
+      codigoInventario: sampleInventoryCode,
+      nombre: 'Silla escolar de ejemplo',
+      descripcion: 'Silla azul en buen estado',
+      marca: 'Marca X',
+      modelo: 'Modelo Y',
+      serie: 'SN-900001',
+      estado: statuses[0]?.name ?? 'Bueno',
+      categoria: categories[0]?.name ?? 'Mobiliario',
+      ubicacion: locations[0]?.name ?? '3° B',
+      responsable: responsables[0]?.name ?? '',
+    });
     row2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
 
-    if (statuses.length) {
-      const noteRow = sheet.addRow([null, null, null, null, null, null, null, statuses.map((s) => s.name).join(', '), null, null]);
-      noteRow.font = { italic: true, color: { argb: 'FF6B7280' } };
+    sheet.getColumn('codigoBien').numFmt = '@';
+    sheet.getColumn('denominacion').numFmt = '@';
+    sheet.getColumn('codigoInventario').numFmt = '@';
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: sheet.columnCount },
+    };
+
+    const help = workbook.addWorksheet('Listas');
+    help.columns = [
+      { header: 'Estados válidos', key: 'estado', width: 24 },
+      { header: 'Categorías válidas', key: 'categoria', width: 28 },
+      { header: 'Ubicaciones válidas', key: 'ubicacion', width: 28 },
+      { header: 'Responsables válidos', key: 'responsable', width: 30 },
+    ];
+    help.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    help.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+
+    const maxRows = Math.max(statuses.length, categories.length, locations.length, responsables.length, 1);
+    for (let i = 0; i < maxRows; i++) {
+      help.addRow({
+        estado: statuses[i]?.name ?? '',
+        categoria: categories[i]?.name ?? '',
+        ubicacion: locations[i]?.name ?? '',
+        responsable: responsables[i]?.name ?? '',
+      });
     }
+
+    const addListValidation = (column: number, listColumn: string, count: number) => {
+      if (count <= 0) return;
+      for (let row = 2; row <= 500; row++) {
+        sheet.getCell(row, column).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [`'Listas'!$${listColumn}$2:$${listColumn}$${count + 1}`],
+        };
+      }
+    };
+
+    addListValidation(10, 'A', statuses.length);
+    addListValidation(11, 'B', categories.length);
+    addListValidation(12, 'C', locations.length);
+    addListValidation(13, 'D', responsables.length);
+
+    sheet.getRow(1).height = 22;
+    help.getRow(1).height = 22;
 
     const filename = `Plantilla_Importacion_Inventario.xlsx`;
     res.setHeader(

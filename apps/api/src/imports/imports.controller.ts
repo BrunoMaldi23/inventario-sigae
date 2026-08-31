@@ -49,8 +49,8 @@ export class ImportsController {
     @CurrentUser() user: AuthUser,
   ) {
     if (!file) throw invalidData('Archivo no recibido');
-    if (!/\.(xlsx|xls)$/i.test(file.originalname ?? '')) {
-      throw invalidData('Solo se admiten archivos .xlsx');
+    if (!/\.(xlsx|xlsm)$/i.test(file.originalname ?? '')) {
+      throw invalidData('Solo se admiten archivos .xlsx o .xlsm');
     }
     return this.importsService.processUpload(file.buffer, file.originalname, user.id);
   }

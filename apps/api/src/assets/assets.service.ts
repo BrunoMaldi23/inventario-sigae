@@ -38,6 +38,50 @@ const assetInclude = {
 
 type AssetWithRelations = Prisma.AssetGetPayload<{ include: typeof assetInclude }>;
 
+const locationGroupInclude = {
+  parent: true,
+  assets: {
+    where: { deletedAt: null, active: true },
+    include: { status: true, responsible: true },
+    orderBy: { assetCode: 'asc' },
+  },
+} satisfies Prisma.LocationInclude;
+
+type LocationGroupWithAssets = Prisma.LocationGetPayload<{ include: typeof locationGroupInclude }>;
+
+function serializeLocationGroup(location: LocationGroupWithAssets) {
+  const assets = location.assets;
+  const statusCounts = new Map<string, number>();
+  const responsibleCounts = new Map<string, number>();
+
+  for (const asset of assets) {
+    statusCounts.set(asset.status?.name ?? 'Sin estado', (statusCounts.get(asset.status?.name ?? 'Sin estado') ?? 0) + 1);
+    if (asset.responsible?.name) {
+      responsibleCounts.set(asset.responsible.name, (responsibleCounts.get(asset.responsible.name) ?? 0) + 1);
+    }
+  }
+
+  const mainStatus = [...statusCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const mainResponsible = [...responsibleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const latestUpdate = assets.reduce<Date | null>((latest, asset) => {
+    if (!latest || asset.updatedAt > latest) return asset.updatedAt;
+    return latest;
+  }, null);
+
+  return {
+    id: location.id,
+    name: location.name,
+    path: locationPath(location),
+    type: location.type,
+    active: location.active,
+    description: location.description,
+    assetCount: assets.length,
+    mainStatus,
+    mainResponsible,
+    latestUpdate: latestUpdate?.toISOString() ?? null,
+  };
+}
+
 export function serializeAsset(a: AssetWithRelations): AssetDTO {
   return {
     id: a.id,
@@ -189,6 +233,85 @@ const items = result.items.map((a: any) => ({
     }));
 
     return { items, meta: result.meta };
+  }
+
+  async findLocationGroups(query: QueryAssetsDto) {
+    const assetWhere: Prisma.AssetWhereInput = { deletedAt: null, active: true, locationId: { not: null } };
+
+    if (query.search) {
+      const q = query.search.trim();
+      assetWhere.OR = [
+        { assetCode: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { brand: { contains: q, mode: 'insensitive' } },
+        { model: { contains: q, mode: 'insensitive' } },
+        { serialNumber: { contains: q, mode: 'insensitive' } },
+        { location: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+    if (query.categoryId) assetWhere.categoryId = query.categoryId;
+    if (query.statusId) assetWhere.statusId = query.statusId;
+    if (query.locationId) assetWhere.locationId = query.locationId;
+    if (query.responsibleId) assetWhere.responsibleId = query.responsibleId;
+
+    const grouped = await this.prisma.asset.groupBy({
+      by: ['locationId'],
+      where: assetWhere,
+      _count: { _all: true },
+    });
+
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const total = grouped.length;
+    const locationIds = grouped.map((group) => group.locationId).filter((id): id is string => Boolean(id));
+
+    const locations = locationIds.length
+      ? await this.prisma.location.findMany({
+          where: { id: { in: locationIds } },
+          include: locationGroupInclude,
+        })
+      : [];
+    const items = locations
+      .map(serializeLocationGroup)
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+    return {
+      items: items.slice((page - 1) * pageSize, page * pageSize),
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+      },
+    };
+  }
+
+  async findLocationSheet(locationId: string) {
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, active: true },
+      include: {
+        parent: true,
+        assets: {
+          where: { deletedAt: null, active: true },
+          include: assetInclude,
+          orderBy: { assetCode: 'asc' },
+        },
+      },
+    });
+    if (!location) throw notFound('La ubicación no existe');
+
+    return {
+      location: {
+        id: location.id,
+        name: location.name,
+        path: locationPath(location),
+        type: location.type,
+        active: location.active,
+        description: location.description,
+      },
+      assets: location.assets.map(serializeAsset),
+    };
   }
 
   async findOne(id: string): Promise<AssetDTO> {
@@ -648,7 +771,7 @@ const data: Prisma.AssetUncheckedUpdateInput = {
   async generateNextAssetCode(tx?: PrismaClient | Prisma.TransactionClient): Promise<string> {
     const client = tx ?? this.prisma;
     const rows = await client.$queryRaw<Array<{ max: bigint | number | null }>>`
-      SELECT MAX(CAST(SUBSTRING("assetCode", ${ASSET_CODE_PREFIX.length + 2}) AS INTEGER)) AS max
+      SELECT MAX(CAST(NULLIF(REGEXP_REPLACE("assetCode", ${`^${ASSET_CODE_PREFIX}-`}, ''), '') AS INTEGER)) AS max
       FROM "Asset"
       WHERE "assetCode" LIKE ${`${ASSET_CODE_PREFIX}-%`}
     `;

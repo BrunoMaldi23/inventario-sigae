@@ -93,6 +93,7 @@ export interface LoginResponse {
 
 export type LocationType =
   | 'building'
+  | 'cycle'
   | 'floor'
   | 'classroom'
   | 'office'

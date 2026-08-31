@@ -45,6 +45,20 @@ export class AssetsController {
     return this.assetsService.findByQr(qr);
   }
 
+  @Get('locations')
+  @Permissions('asset.read')
+  @ApiOperation({ summary: 'Listar inventario agrupado por ubicación' })
+  findLocationGroups(@Query() query: QueryAssetsDto) {
+    return this.assetsService.findLocationGroups(query);
+  }
+
+  @Get('locations/:locationId')
+  @Permissions('asset.read')
+  @ApiOperation({ summary: 'Ficha mural completa de una ubicación' })
+  findLocationSheet(@Param('locationId') locationId: string) {
+    return this.assetsService.findLocationSheet(locationId);
+  }
+
   @Get(':id')
   @Permissions('asset.read')
   @ApiOperation({ summary: 'Ficha del bien' })

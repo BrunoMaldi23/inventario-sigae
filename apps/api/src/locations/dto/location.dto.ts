@@ -10,6 +10,7 @@ import {
 
 export const LocationTypeValues = {
   building: 'building',
+  cycle: 'cycle',
   floor: 'floor',
   classroom: 'classroom',
   office: 'office',

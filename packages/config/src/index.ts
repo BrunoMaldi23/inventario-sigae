@@ -4,7 +4,7 @@ import { LocationType, AssetMovementType, PermissionCode } from '@inventario/typ
 
 export const SCHOOL_NAME = 'Inventario Escolar';
 
-export const ASSET_CODE_PREFIX = 'INV';
+export const ASSET_CODE_PREFIX = 'HM2026';
 
 export const ASSET_CODE_INDEX_MIN = 1;
 

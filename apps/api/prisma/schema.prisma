@@ -407,6 +407,7 @@ model InventoryCountItem {
 
 enum LocationType {
   building
+  cycle
   floor
   classroom
   office

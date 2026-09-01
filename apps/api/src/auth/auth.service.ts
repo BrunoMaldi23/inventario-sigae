@@ -38,7 +38,10 @@ export class AuthService {
       throw unauthorized('Credenciales inválidas');
     }
 
-    const valid = await argon2.verify(user.passwordHash, password);
+    const trimmedPassword = password.trim();
+    const valid =
+      (await argon2.verify(user.passwordHash, password)) ||
+      (trimmedPassword !== password && (await argon2.verify(user.passwordHash, trimmedPassword)));
     if (!valid) {
       await this.audit.write({
         userId: user.id,

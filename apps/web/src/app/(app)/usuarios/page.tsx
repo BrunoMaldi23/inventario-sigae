@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   KeyRound,
   Mail,
   Pencil,
@@ -47,6 +48,7 @@ export default function UsuariosPage() {
     items,
     meta,
     loading,
+    error,
     setPage,
     reload,
   } = usePage<UserDTO>(
@@ -353,6 +355,27 @@ export default function UsuariosPage() {
           />
         </div>
       </section>
+
+      {error && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <div className="flex gap-3">
+            <AlertTriangle
+              size={18}
+              className="mt-0.5 shrink-0 text-amber-600"
+            />
+
+            <div>
+              <p className="text-sm font-semibold">
+                No se pudo cargar la API de usuarios
+              </p>
+
+              <p className="mt-1 text-sm leading-5 text-amber-800">
+                {error}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* =====================================================
           TABLA

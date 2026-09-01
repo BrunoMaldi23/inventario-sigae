@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { Paginated, PermissionCode, RoleName, UserDTO } from '@inventario/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
-import { conflict, notFound } from '../common/exceptions/business.exception';
+import { conflict, invalidData, notFound } from '../common/exceptions/business.exception';
 import { paginate } from '../common/pagination/pagination';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 
@@ -61,31 +61,50 @@ export class UsersService {
 
   async create(dto: CreateUserDto, performedById: string): Promise<UserDTO> {
     const email = dto.email.trim().toLowerCase();
+    const name = dto.name.trim();
+    const password = dto.password.trim();
 
     const exists = await this.prisma.user.findUnique({ where: { email } });
-    if (exists) throw conflict('Ya existe un usuario con ese correo');
+    if (exists && !exists.deletedAt) throw conflict('Ya existe un usuario con ese correo');
 
     const role = await this.prisma.role.findUnique({ where: { id: dto.roleId } });
     if (!role) throw notFound('Rol no encontrado');
 
-    const passwordHash = await argon2.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        name: dto.name,
-        passwordHash,
-        roleId: dto.roleId,
-      },
-      include: userInclude,
-    });
+    if (password.length < 6) {
+      throw invalidData('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    const passwordHash = await argon2.hash(password);
+    const user = exists
+      ? await this.prisma.user.update({
+          where: { id: exists.id },
+          data: {
+            email,
+            name,
+            passwordHash,
+            roleId: dto.roleId,
+            active: true,
+            deletedAt: null,
+          },
+          include: userInclude,
+        })
+      : await this.prisma.user.create({
+          data: {
+            email,
+            name,
+            passwordHash,
+            roleId: dto.roleId,
+          },
+          include: userInclude,
+        });
 
     await this.audit.diff(
       performedById,
-      'USER_CREATE',
+      exists ? 'USER_RESTORE' : 'USER_CREATE',
       'User',
       user.id,
       null,
-      { email: user.email, name: user.name, roleId: user.roleId },
+      { email: user.email, name: user.name, roleId: user.roleId, active: user.active },
       { performedById },
     );
 
@@ -97,7 +116,7 @@ export class UsersService {
     if (!existing) throw notFound('Usuario no encontrado');
 
     const data: Prisma.UserUpdateInput = {};
-    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.email !== undefined) {
       const email = dto.email.trim().toLowerCase();
       const dup = await this.prisma.user.findUnique({ where: { email } });
@@ -109,8 +128,14 @@ export class UsersService {
       if (!role) throw notFound('Rol no encontrado');
       data.role = { connect: { id: dto.roleId } };
     }
-    if (dto.password) {
-      data.passwordHash = await argon2.hash(dto.password);
+    if (dto.password !== undefined) {
+      const password = dto.password.trim();
+      if (password.length > 0 && password.length < 6) {
+        throw invalidData('La contraseña debe tener al menos 6 caracteres');
+      }
+      if (password.length >= 6) {
+        data.passwordHash = await argon2.hash(password);
+      }
     }
     if (dto.active !== undefined) data.active = dto.active;
 

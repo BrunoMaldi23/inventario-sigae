@@ -269,17 +269,17 @@ export default function NuevoBienPage() {
               />
             </Field>
 
-            <Field label="Código del bien">
+            <Field label="Código del bien" hint="Para bienes sin código HM, déjelo vacío. En la ficha se verá como “Sin código” y el QR usará un código interno.">
               <Input
                 value={form.assetCode}
                 onChange={set("assetCode")}
-                placeholder="Se generará automáticamente"
+                placeholder="Sin código"
                 maxLength={40}
                 disabled={Number(form.quantity) > 1}
               />
             </Field>
 
-            <Field label="Cantidad" hint="Máximo 200 por carga. Cada unidad se crea como bien independiente.">
+            <Field label="Cantidad" hint="Ej.: 40 sillas. Cada unidad se crea como fila independiente sin repetir trabajo.">
               <Input
                 type="number"
                 min={1}
@@ -339,13 +339,13 @@ export default function NuevoBienPage() {
             </Field>
 
             <div className="md:col-span-2">
-              <Field label="Descripción">
+              <Field label="Descripción" hint="Escriba color, material y detalles visibles. Si el código queda vacío, el sistema agrega la marca “Código original HM: Sin código”.">
                 <Textarea
                   value={form.description}
                   onChange={set("description")}
                   rows={3}
                   maxLength={500}
-                  placeholder="Describe brevemente el bien, color, características o cualquier dato útil."
+                  placeholder="Ej.: plástico rojo patas metal gris"
                 />
               </Field>
             </div>

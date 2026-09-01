@@ -323,7 +323,7 @@ export default function LocationInventorySheetPage() {
             </thead>
             <tbody>
               {sheet.assets.map((asset, index) => {
-                const originalCode = importedValue(asset.description, "Código original") ?? asset.assetCode;
+                const originalCode = displayOriginalCode(importedValue(asset.description, "Código original") ?? asset.assetCode);
                 const description = visibleDescription(asset.description);
                 return (
                   <tr key={asset.id}>
@@ -384,19 +384,19 @@ export default function LocationInventorySheetPage() {
         <form onSubmit={submitAsset} className="space-y-4">
           {!editingAsset && (
             <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
-              Para bienes repetidos, define la cantidad y se crearán filas independientes con código interno automático. Se mantienen estado, categoría y responsable para seguir cargando rápido.
+              Para bienes repetidos, define la cantidad y deja el código vacío si no existe código HM. La ficha mostrará “Sin código” y cada unidad quedará como fila independiente.
             </div>
           )}
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <Field label="Código del bien" hint="Déjelo vacío para generar el siguiente código automáticamente.">
-              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} maxLength={40} disabled={!editingAsset && Number(form.quantity) > 1} />
+            <Field label="Código del bien" hint="Si no hay código HM, déjelo vacío. En la ficha se verá como “Sin código”.">
+              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} placeholder="Sin código" maxLength={40} disabled={!editingAsset && Number(form.quantity) > 1} />
             </Field>
             <Field label="Denominación" required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />
             </Field>
             {!editingAsset && (
-              <Field label="Cantidad" hint="Máximo 200 por carga. Cada unidad queda como fila independiente.">
+              <Field label="Cantidad" hint="Ej.: 40 sillas. Se crean 40 filas independientes dentro de esta ubicación.">
                 <Input
                   type="number"
                   min={1}
@@ -441,8 +441,8 @@ export default function LocationInventorySheetPage() {
               </Select>
             </Field>
           </div>
-          <Field label="Descripción">
-            <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} maxLength={500} />
+          <Field label="Descripción" hint="Escriba color, material y detalles visibles. El texto de “Sin código” se agrega solo cuando corresponde.">
+            <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Ej.: plástico rojo patas metal gris" rows={3} maxLength={500} />
           </Field>
           <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
             Se guardará en la ubicación: <span className="font-semibold">{sheet.location.path || sheet.location.name}</span>.
@@ -495,6 +495,11 @@ function importedValue(description: string | null | undefined, label: string) {
     ?.slice(label.length)
     .replace(/^:\s*/, "")
     .trim();
+}
+
+function displayOriginalCode(value: string | null | undefined) {
+  const clean = (value ?? "").replace(/^HM:\s*/i, "").trim();
+  return clean || "Sin código";
 }
 
 function firstImportedValue(assets: AssetDTO[], label: string) {

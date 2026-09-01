@@ -271,13 +271,12 @@ export default function LocationInventorySheetPage() {
       >
         <div className="grid gap-6 md:grid-cols-[240px_1fr] md:items-center">
           <div>
-            <p className="text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-500">Servicio local de educación pública</p>
-            <div className="mt-2 leading-[0.82]">
-              <p className="text-[32px] font-extrabold text-[#12335c]">COSTA</p>
-              <p className="text-[32px] font-extrabold text-[#e11d2e]">ARAUCANÍA</p>
-            </div>
-            <p className="mt-2 text-[9px] font-medium leading-tight text-slate-600">Carahue | Nueva Imperial | Saavedra</p>
-            <p className="text-[9px] font-medium leading-tight text-slate-600">Teodoro Schmidt | Toltén</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/assets/images/logo-costa-araucania.png"
+              alt="Servicio Local de Educación Pública Costa Araucanía"
+              className="h-auto w-[220px] max-w-full print:w-[200px]"
+            />
           </div>
 
           <div className="text-center md:pt-20">

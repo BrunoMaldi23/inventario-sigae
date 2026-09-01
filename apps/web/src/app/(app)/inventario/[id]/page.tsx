@@ -118,13 +118,12 @@ export default function FichaBienPage() {
       <section className="mx-auto min-h-[1120px] w-full max-w-[980px] bg-white px-[74px] py-[86px] text-black shadow-sm ring-1 ring-slate-200 print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none print:ring-0">
         <div className="grid grid-cols-[240px_1fr_130px] items-center">
           <div>
-            <p className="text-[10px] font-bold uppercase leading-none">Servicio local de educación pública</p>
-            <div className="mt-2 leading-[0.82]">
-              <p className="text-[32px] font-black tracking-tight">COSTA</p>
-              <p className="text-[32px] font-black tracking-tight">ARAUCANÍA</p>
-            </div>
-            <p className="mt-2 text-[9px] font-semibold leading-tight">Carahue | Nueva Imperial | Saavedra</p>
-            <p className="text-[9px] font-semibold leading-tight">Teodoro Schmidt | Toltén</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/assets/images/logo-costa-araucania.png"
+              alt="Servicio Local de Educación Pública Costa Araucanía"
+              className="h-auto w-[220px] max-w-full print:w-[200px]"
+            />
           </div>
 
           <div className="pt-20 text-center">

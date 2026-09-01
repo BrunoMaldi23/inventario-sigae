@@ -35,6 +35,7 @@ interface AssetFormState {
   categoryId: string;
   responsibleId: string;
   quantity: string;
+  noCode: boolean;
 }
 
 const emptyAssetForm: AssetFormState = {
@@ -48,6 +49,7 @@ const emptyAssetForm: AssetFormState = {
   categoryId: "",
   responsibleId: "",
   quantity: "1",
+  noCode: false,
 };
 
 function nextAssetForm(current: AssetFormState): AssetFormState {
@@ -130,6 +132,7 @@ export default function LocationInventorySheetPage() {
       categoryId: asset.categoryId ?? "",
       responsibleId: asset.responsibleId ?? "",
       quantity: "1",
+      noCode: false,
     });
     setModalOpen(true);
   }
@@ -145,13 +148,10 @@ export default function LocationInventorySheetPage() {
       return;
     }
     const quantity = editingAsset ? 1 : Math.max(1, Math.min(200, Number(form.quantity) || 1));
-    if (quantity > 1 && form.assetCode.trim()) {
-      notify("Para varias unidades, deje el código vacío para generar códigos únicos", "error");
-      return;
-    }
+    const withoutHmCode = !editingAsset && (form.noCode || quantity > 1);
 
     const payload = {
-      assetCode: form.assetCode.trim() || undefined,
+      assetCode: withoutHmCode ? undefined : form.assetCode.trim() || undefined,
       name: form.name.trim(),
       description: editingAsset
         ? mergeVisibleDescription(editingAsset.description, form.description)
@@ -389,8 +389,24 @@ export default function LocationInventorySheetPage() {
           )}
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <Field label="Código del bien" hint="Si no hay código HM, déjelo vacío. En la ficha se verá como “Sin código”.">
-              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} placeholder="Sin código" maxLength={40} disabled={!editingAsset && Number(form.quantity) > 1} />
+            <Field label="Código del bien" hint="Si no hay código HM, active la opción o deje este campo vacío.">
+              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} placeholder="Sin código" maxLength={40} disabled={!editingAsset && (form.noCode || Number(form.quantity) > 1)} />
+              {!editingAsset && (
+                <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={form.noCode || Number(form.quantity) > 1}
+                    disabled={Number(form.quantity) > 1}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      noCode: event.target.checked,
+                      assetCode: event.target.checked ? "" : current.assetCode,
+                    }))}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  Sin código HM
+                </label>
+              )}
             </Field>
             <Field label="Denominación" required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />

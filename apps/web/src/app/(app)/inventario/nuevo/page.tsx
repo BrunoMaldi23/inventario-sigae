@@ -76,6 +76,7 @@ export default function NuevoBienPage() {
     notes: "",
     active: true,
     quantity: "1",
+    noCode: false,
   });
 
   const [busy, setBusy] = useState(false);
@@ -105,11 +106,7 @@ export default function NuevoBienPage() {
 
     try {
       const quantity = Math.max(1, Math.min(200, Number(form.quantity) || 1));
-      if (quantity > 1 && form.assetCode.trim()) {
-        notify("Para varias unidades, deje el código vacío para generar códigos únicos", "error");
-        setBusy(false);
-        return;
-      }
+      const withoutHmCode = form.noCode || quantity > 1;
 
       const created: AssetDTO[] = [];
       for (let index = 0; index < quantity; index += 1) {
@@ -117,7 +114,7 @@ export default function NuevoBienPage() {
           "/assets",
           {
             assetCode:
-              form.assetCode || undefined,
+              withoutHmCode ? undefined : form.assetCode.trim() || undefined,
 
             name:
               form.name,
@@ -269,14 +266,28 @@ export default function NuevoBienPage() {
               />
             </Field>
 
-            <Field label="Código del bien" hint="Para bienes sin código HM, déjelo vacío. En la ficha se verá como “Sin código” y el QR usará un código interno.">
+            <Field label="Código del bien" hint="Para bienes sin código HM, active la opción o deje este campo vacío.">
               <Input
                 value={form.assetCode}
                 onChange={set("assetCode")}
                 placeholder="Sin código"
                 maxLength={40}
-                disabled={Number(form.quantity) > 1}
+                disabled={form.noCode || Number(form.quantity) > 1}
               />
+              <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={form.noCode || Number(form.quantity) > 1}
+                  disabled={Number(form.quantity) > 1}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    noCode: event.target.checked,
+                    assetCode: event.target.checked ? "" : current.assetCode,
+                  }))}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Sin código HM
+              </label>
             </Field>
 
             <Field label="Cantidad" hint="Ej.: 40 sillas. Cada unidad se crea como fila independiente sin repetir trabajo.">

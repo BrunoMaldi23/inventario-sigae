@@ -361,6 +361,8 @@ export default function RolesPage() {
           </div>
         ) : (
           <Table
+            minWidth="900px"
+            maxHeight="68vh"
             head={
               <>
                 <Th>

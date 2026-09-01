@@ -378,6 +378,8 @@ export default function InventarioPage() {
           </div>
         ) : (
           <Table
+            minWidth="980px"
+            maxHeight="68vh"
             head={
               <>
                 <Th>Ubicación</Th>

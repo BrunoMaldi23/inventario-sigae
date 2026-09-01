@@ -424,6 +424,8 @@ export default function UsuariosPage() {
           </div>
         ) : (
           <Table
+            minWidth="980px"
+            maxHeight="68vh"
             head={
               <>
                 <Th>

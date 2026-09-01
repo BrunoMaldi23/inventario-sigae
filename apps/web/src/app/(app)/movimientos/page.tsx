@@ -70,6 +70,8 @@ export default function MovimientosPage() {
           <Card><EmptyState title="Sin movimientos" description="No hay movimientos que coincidan con los filtros" /></Card>
         ) : (
           <Table
+            minWidth="1080px"
+            maxHeight="68vh"
             head={
               <>
                 <Th>Fecha</Th>

@@ -735,6 +735,8 @@ export default function ImportarPage() {
         ) : (
           <>
             <Table
+              minWidth="1080px"
+              maxHeight="62vh"
               head={
                 <>
                   <Th>

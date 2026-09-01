@@ -246,6 +246,8 @@ export default function AuditoriaPage() {
           </div>
         ) : (
           <Table
+            minWidth="1120px"
+            maxHeight="68vh"
             head={
               <>
                 <Th>Fecha</Th>

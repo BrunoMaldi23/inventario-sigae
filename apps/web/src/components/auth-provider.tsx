@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthUser, LoginResponse } from "@/lib/types";
-import { apiPost, clearAuth, getStoredUser, getToken, setStoredUser, setTokens } from "@/lib/api";
+import { apiGet, apiPost, clearAuth, getStoredUser, getToken, setStoredUser, setTokens } from "@/lib/api";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -24,11 +24,46 @@ function initUser(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(initUser);
-  const [ready] = useState(true);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function validateSession() {
+      if (!getToken()) {
+        if (!cancelled) setReady(true);
+        return;
+      }
+
+      try {
+        const currentUser = await apiGet<AuthUser>("/auth/me");
+        if (cancelled) return;
+        setStoredUser(currentUser);
+        setUser(currentUser);
+      } catch {
+        clearAuth();
+        if (!cancelled) {
+          setUser(null);
+          router.replace("/login");
+        }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+
+    void validateSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await apiPost<LoginResponse>("/auth/login", { email, password });
+      const res = await apiPost<LoginResponse>("/auth/login", {
+        email: email.trim(),
+        password: password.trim(),
+      });
       setTokens(res.accessToken, res.refreshToken);
       setStoredUser(res.user);
       setUser(res.user);

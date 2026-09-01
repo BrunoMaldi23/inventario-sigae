@@ -196,6 +196,7 @@ export function AppShell({
 }) {
   const {
     user,
+    ready,
     logout,
     hasPermission,
   } = useAuth();
@@ -213,12 +214,14 @@ export function AppShell({
   useEffect(() => {
     if (
       mounted &&
+      ready &&
       !user
     ) {
       router.replace("/login");
     }
   }, [
     mounted,
+    ready,
     user,
     router,
   ]);
@@ -239,7 +242,7 @@ export function AppShell({
     return null;
   }
 
-  if (!user) {
+  if (!ready || !user) {
     return null;
   }
 

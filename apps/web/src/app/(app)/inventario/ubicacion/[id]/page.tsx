@@ -48,6 +48,15 @@ const emptyAssetForm: AssetFormState = {
   responsibleId: "",
 };
 
+function nextAssetForm(current: AssetFormState): AssetFormState {
+  return {
+    ...emptyAssetForm,
+    statusId: current.statusId,
+    categoryId: current.categoryId,
+    responsibleId: current.responsibleId,
+  };
+}
+
 export default function LocationInventorySheetPage() {
   const params = useParams<{ id: string }>();
   const { notify } = useToast();
@@ -121,11 +130,14 @@ export default function LocationInventorySheetPage() {
     setModalOpen(true);
   }
 
-  async function submitAsset(event: FormEvent) {
-    event.preventDefault();
+  async function saveAsset(keepAdding = false) {
     if (!sheet) return;
     if (!form.statusId) {
       notify("Seleccione un estado para el bien", "error");
+      return;
+    }
+    if (!form.name.trim()) {
+      notify("Ingrese la denominación del bien", "error");
       return;
     }
 
@@ -168,15 +180,24 @@ export default function LocationInventorySheetPage() {
               }
             : current,
         );
-        notify("Bien agregado a la ubicación");
+        notify(keepAdding ? "Bien agregado, listo para la siguiente fila" : "Bien agregado a la ubicación");
       }
-      setModalOpen(false);
+      if (keepAdding && !editingAsset) {
+        setForm((current) => nextAssetForm(current));
+      } else {
+        setModalOpen(false);
+      }
       window.setTimeout(() => reload(), 0);
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo guardar el bien", "error");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitAsset(event: FormEvent) {
+    event.preventDefault();
+    await saveAsset(false);
   }
 
   async function removeAsset(asset: AssetDTO) {
@@ -341,9 +362,15 @@ export default function LocationInventorySheetPage() {
         </div>
       </section>
 
-      <Modal open={modalOpen} onClose={() => !busy && setModalOpen(false)} title={editingAsset ? "Editar bien de la ficha" : `Agregar bien a ${sheet.location.name}`}>
+      <Modal open={modalOpen} onClose={() => !busy && setModalOpen(false)} title={editingAsset ? "Editar bien de la ficha" : `Agregar bien a ${sheet.location.name}`} size="xl">
         <form onSubmit={submitAsset} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          {!editingAsset && (
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
+              Para cargar varios bienes, usa “Guardar y agregar otro”. Se mantienen estado, categoría y responsable para que solo cambies denominación, marca, modelo o serie.
+            </div>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-3">
             <Field label="Código del bien" hint="Déjelo vacío para generar el siguiente código automáticamente.">
               <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} maxLength={40} />
             </Field>
@@ -390,9 +417,14 @@ export default function LocationInventorySheetPage() {
           <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
             Se guardará en la ubicación: <span className="font-semibold">{sheet.location.path || sheet.location.name}</span>.
           </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={busy}>Cancelar</Button>
-            <Button type="submit" loading={busy}>{editingAsset ? "Guardar cambios" : "Agregar fila"}</Button>
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 pt-3 sm:-mx-5 sm:flex-row sm:justify-end sm:px-5">
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={busy} className="w-full sm:w-auto">Cancelar</Button>
+            {!editingAsset && (
+              <Button type="button" variant="secondary" loading={busy} onClick={() => saveAsset(true)} className="w-full sm:w-auto">
+                Guardar y agregar otro
+              </Button>
+            )}
+            <Button type="submit" loading={busy} className="w-full sm:w-auto">{editingAsset ? "Guardar cambios" : "Agregar fila"}</Button>
           </div>
         </form>
       </Modal>

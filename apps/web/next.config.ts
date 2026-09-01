@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    const apiProxyUrl = process.env.API_PROXY_URL ?? "http://localhost:3000";
+    const apiProxyUrl = process.env.API_PROXY_URL;
+    if (!apiProxyUrl) return [];
 
     return [
       {

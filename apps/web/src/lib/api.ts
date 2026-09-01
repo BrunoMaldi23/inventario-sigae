@@ -246,6 +246,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
 export function apiAssetUrl(url?: string | null): string | null {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return url;
   const apiRoot = API_URL.replace(/\/api\/?$/, "").replace(/\/$/, "");
-  return `${apiRoot}${url.startsWith("/") ? url : `/${url}`}`;
+  return `${apiRoot}/${url}`;
 }

@@ -75,6 +75,7 @@ export default function NuevoBienPage() {
     provenance: "",
     notes: "",
     active: true,
+    quantity: "1",
   });
 
   const [busy, setBusy] = useState(false);
@@ -103,80 +104,95 @@ export default function NuevoBienPage() {
     setBusy(true);
 
     try {
-      const res = await apiPost<AssetDTO>(
-        "/assets",
-        {
-          assetCode:
-            form.assetCode || undefined,
+      const quantity = Math.max(1, Math.min(200, Number(form.quantity) || 1));
+      if (quantity > 1 && form.assetCode.trim()) {
+        notify("Para varias unidades, deje el código vacío para generar códigos únicos", "error");
+        setBusy(false);
+        return;
+      }
 
-          name:
-            form.name,
+      const created: AssetDTO[] = [];
+      for (let index = 0; index < quantity; index += 1) {
+        const res = await apiPost<AssetDTO>(
+          "/assets",
+          {
+            assetCode:
+              form.assetCode || undefined,
 
-          description:
-            form.description,
+            name:
+              form.name,
 
-          brand:
-            form.brand,
+            description:
+              form.description,
 
-          model:
-            form.model,
+            brand:
+              form.brand,
 
-          serialNumber:
-            form.serialNumber,
+            model:
+              form.model,
 
-          barcode:
-            form.barcode,
+            serialNumber:
+              form.serialNumber,
 
-          categoryId:
-            form.categoryId || undefined,
+            barcode:
+              form.barcode,
 
-          statusId:
-            form.statusId,
+            categoryId:
+              form.categoryId || undefined,
 
-          locationId:
-            form.locationId || undefined,
+            statusId:
+              form.statusId,
 
-          responsibleId:
-            form.responsibleId || undefined,
+            locationId:
+              form.locationId || undefined,
 
-          acquisitionDate:
-            form.acquisitionDate || undefined,
+            responsibleId:
+              form.responsibleId || undefined,
 
-          acquisitionValue:
-            form.acquisitionValue
-              ? Number(form.acquisitionValue)
-              : undefined,
+            acquisitionDate:
+              form.acquisitionDate || undefined,
 
-          supplier:
-            form.supplier,
+            acquisitionValue:
+              form.acquisitionValue
+                ? Number(form.acquisitionValue)
+                : undefined,
 
-          invoiceNumber:
-            form.invoiceNumber,
+            supplier:
+              form.supplier,
 
-          purchaseOrder:
-            form.purchaseOrder,
+            invoiceNumber:
+              form.invoiceNumber,
 
-          fundingSource:
-            form.fundingSource,
+            purchaseOrder:
+              form.purchaseOrder,
 
-          provenance:
-            form.provenance,
+            fundingSource:
+              form.fundingSource,
 
-          notes:
-            form.notes,
+            provenance:
+              form.provenance,
 
-          active:
-            form.active,
-        },
-      );
+            notes:
+              form.notes,
+
+            active:
+              form.active,
+          },
+        );
+        created.push(res);
+      }
 
       notify(
-        `Bien ${res.assetCode} registrado correctamente`,
+        quantity > 1
+          ? `${quantity} bienes registrados correctamente`
+          : `Bien ${created[0].assetCode} registrado correctamente`,
       );
 
-      router.push(
-        `/inventario/${res.id}`,
-      );
+      if (quantity > 1 && form.locationId) {
+        router.push(`/inventario/ubicacion/${form.locationId}`);
+      } else {
+        router.push(`/inventario/${created[0].id}`);
+      }
     } catch (error) {
       notify(
         error instanceof Error
@@ -259,6 +275,18 @@ export default function NuevoBienPage() {
                 onChange={set("assetCode")}
                 placeholder="Se generará automáticamente"
                 maxLength={40}
+                disabled={Number(form.quantity) > 1}
+              />
+            </Field>
+
+            <Field label="Cantidad" hint="Máximo 200 por carga. Cada unidad se crea como bien independiente.">
+              <Input
+                type="number"
+                min={1}
+                max={200}
+                step={1}
+                value={form.quantity}
+                onChange={set("quantity")}
               />
             </Field>
 

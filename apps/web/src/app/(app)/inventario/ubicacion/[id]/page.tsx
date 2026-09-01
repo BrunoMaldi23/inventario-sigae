@@ -34,6 +34,7 @@ interface AssetFormState {
   statusId: string;
   categoryId: string;
   responsibleId: string;
+  quantity: string;
 }
 
 const emptyAssetForm: AssetFormState = {
@@ -46,6 +47,7 @@ const emptyAssetForm: AssetFormState = {
   statusId: "",
   categoryId: "",
   responsibleId: "",
+  quantity: "1",
 };
 
 function nextAssetForm(current: AssetFormState): AssetFormState {
@@ -54,6 +56,7 @@ function nextAssetForm(current: AssetFormState): AssetFormState {
     statusId: current.statusId,
     categoryId: current.categoryId,
     responsibleId: current.responsibleId,
+    quantity: "1",
   };
 }
 
@@ -126,6 +129,7 @@ export default function LocationInventorySheetPage() {
       statusId: asset.statusId ?? defaultStatusId,
       categoryId: asset.categoryId ?? "",
       responsibleId: asset.responsibleId ?? "",
+      quantity: "1",
     });
     setModalOpen(true);
   }
@@ -138,6 +142,11 @@ export default function LocationInventorySheetPage() {
     }
     if (!form.name.trim()) {
       notify("Ingrese la denominación del bien", "error");
+      return;
+    }
+    const quantity = editingAsset ? 1 : Math.max(1, Math.min(200, Number(form.quantity) || 1));
+    if (quantity > 1 && form.assetCode.trim()) {
+      notify("Para varias unidades, deje el código vacío para generar códigos únicos", "error");
       return;
     }
 
@@ -171,16 +180,26 @@ export default function LocationInventorySheetPage() {
         );
         notify("Bien actualizado");
       } else {
-        const createdAsset = await apiPost<AssetDTO>("/assets", payload);
+        const createdAssets: AssetDTO[] = [];
+        for (let index = 0; index < quantity; index += 1) {
+          const createdAsset = await apiPost<AssetDTO>("/assets", payload);
+          createdAssets.push(createdAsset);
+        }
         setSheetData((current) =>
           current
             ? {
                 ...current,
-                assets: [...current.assets, createdAsset],
+                assets: [...current.assets, ...createdAssets],
               }
             : current,
         );
-        notify(keepAdding ? "Bien agregado, listo para la siguiente fila" : "Bien agregado a la ubicación");
+        notify(
+          quantity > 1
+            ? `${quantity} bienes agregados a la ubicación`
+            : keepAdding
+              ? "Bien agregado, listo para la siguiente fila"
+              : "Bien agregado a la ubicación",
+        );
       }
       if (keepAdding && !editingAsset) {
         setForm((current) => nextAssetForm(current));
@@ -366,17 +385,29 @@ export default function LocationInventorySheetPage() {
         <form onSubmit={submitAsset} className="space-y-4">
           {!editingAsset && (
             <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900">
-              Para cargar varios bienes, usa “Guardar y agregar otro”. Se mantienen estado, categoría y responsable para que solo cambies denominación, marca, modelo o serie.
+              Para bienes repetidos, define la cantidad y se crearán filas independientes con código interno automático. Se mantienen estado, categoría y responsable para seguir cargando rápido.
             </div>
           )}
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Field label="Código del bien" hint="Déjelo vacío para generar el siguiente código automáticamente.">
-              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} maxLength={40} />
+              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} maxLength={40} disabled={!editingAsset && Number(form.quantity) > 1} />
             </Field>
             <Field label="Denominación" required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />
             </Field>
+            {!editingAsset && (
+              <Field label="Cantidad" hint="Máximo 200 por carga. Cada unidad queda como fila independiente.">
+                <Input
+                  type="number"
+                  min={1}
+                  max={200}
+                  step={1}
+                  value={form.quantity}
+                  onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))}
+                />
+              </Field>
+            )}
             <Field label="Marca">
               <Input value={form.brand} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))} maxLength={120} />
             </Field>

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { AuthUser } from '@inventario/types';
@@ -83,6 +84,7 @@ export class AssetsController {
   }
 
   @Post()
+  @SkipThrottle({ default: true })
   @Permissions('asset.create')
   @ApiOperation({ summary: 'Crear bien' })
   create(@Body() dto: CreateAssetDto, @CurrentUser() user: AuthUser) {

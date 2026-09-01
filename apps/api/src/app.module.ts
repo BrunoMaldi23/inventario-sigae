@@ -36,7 +36,7 @@ import { ImportsModule } from './imports/imports.module';
       {
         name: 'default',
         ttl: 60000,
-        limit: 600,
+        limit: 120,
       },
       {
         name: 'auth',

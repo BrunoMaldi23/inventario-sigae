@@ -58,9 +58,14 @@ export default function LocationInventorySheetPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetDTO | null>(null);
   const [form, setForm] = useState<AssetFormState>(emptyAssetForm);
+  const [sheetData, setSheetData] = useState<LocationSheet | null>(null);
   const [busy, setBusy] = useState(false);
 
   const defaultStatusId = statuses?.[0]?.id ?? "";
+
+  useEffect(() => {
+    if (data) setSheetData(data);
+  }, [data]);
 
   useEffect(() => {
     if (!modalOpen && defaultStatusId) {
@@ -76,7 +81,9 @@ export default function LocationInventorySheetPage() {
     );
   }
 
-  if (!data) {
+  const sheet = sheetData ?? data;
+
+  if (!sheet) {
     return (
       <div className="space-y-4">
         <Link href="/inventario" className="text-sm font-medium text-emerald-700 hover:underline">
@@ -87,10 +94,10 @@ export default function LocationInventorySheetPage() {
     );
   }
 
-  const responsible = mainResponsible(data.assets);
-  const rut = firstImportedValue(data.assets, "RUT responsable");
-  const floor = firstImportedValue(data.assets, "Piso/Sector") ?? firstImportedValue(data.assets, "Sector");
-  const updatedAt = latestUpdatedAt(data.assets);
+  const responsible = mainResponsible(sheet.assets);
+  const rut = firstImportedValue(sheet.assets, "RUT responsable");
+  const floor = firstImportedValue(sheet.assets, "Piso/Sector") ?? firstImportedValue(sheet.assets, "Sector");
+  const updatedAt = latestUpdatedAt(sheet.assets);
 
   function openCreateAsset() {
     setEditingAsset(null);
@@ -116,7 +123,7 @@ export default function LocationInventorySheetPage() {
 
   async function submitAsset(event: FormEvent) {
     event.preventDefault();
-    if (!data) return;
+    if (!sheet) return;
     if (!form.statusId) {
       notify("Seleccione un estado para el bien", "error");
       return;
@@ -125,28 +132,46 @@ export default function LocationInventorySheetPage() {
     const payload = {
       assetCode: form.assetCode.trim() || undefined,
       name: form.name.trim(),
-      description: form.description.trim() || undefined,
-      brand: form.brand.trim() || undefined,
-      model: form.model.trim() || undefined,
-      serialNumber: form.serialNumber.trim() || undefined,
+      description: editingAsset
+        ? mergeVisibleDescription(editingAsset.description, form.description)
+        : form.description.trim() || undefined,
+      brand: form.brand.trim(),
+      model: form.model.trim(),
+      serialNumber: form.serialNumber.trim(),
       statusId: form.statusId,
       categoryId: form.categoryId || undefined,
       responsibleId: form.responsibleId || undefined,
-      locationId: data.location.id,
+      locationId: sheet.location.id,
       version: editingAsset?.version,
     };
 
     setBusy(true);
     try {
       if (editingAsset) {
-        await apiPatch(`/assets/${editingAsset.id}`, payload);
+        const updatedAsset = await apiPatch<AssetDTO>(`/assets/${editingAsset.id}`, payload);
+        setSheetData((current) =>
+          current
+            ? {
+                ...current,
+                assets: current.assets.map((asset) => (asset.id === updatedAsset.id ? updatedAsset : asset)),
+              }
+            : current,
+        );
         notify("Bien actualizado");
       } else {
-        await apiPost("/assets", payload);
+        const createdAsset = await apiPost<AssetDTO>("/assets", payload);
+        setSheetData((current) =>
+          current
+            ? {
+                ...current,
+                assets: [...current.assets, createdAsset],
+              }
+            : current,
+        );
         notify("Bien agregado a la ubicación");
       }
       setModalOpen(false);
-      reload();
+      window.setTimeout(() => reload(), 0);
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo guardar el bien", "error");
     } finally {
@@ -159,6 +184,14 @@ export default function LocationInventorySheetPage() {
     try {
       await apiDelete(`/assets/${asset.id}`);
       notify("Bien eliminado");
+      setSheetData((current) =>
+        current
+          ? {
+              ...current,
+              assets: current.assets.filter((item) => item.id !== asset.id),
+            }
+          : current,
+      );
       reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo eliminar el bien", "error");
@@ -170,7 +203,7 @@ export default function LocationInventorySheetPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <p className="text-xs font-medium text-slate-500">Ficha mural por ubicación</p>
-          <h2 className="text-xl font-semibold text-slate-950">{data.location.name}</h2>
+          <h2 className="text-xl font-semibold text-slate-950">{sheet.location.name}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={openCreateAsset} className="bg-emerald-600 hover:bg-emerald-700">
@@ -193,10 +226,10 @@ export default function LocationInventorySheetPage() {
       </div>
 
       <section
-        className="mx-auto min-h-[1120px] w-full max-w-[980px] bg-[#fffefd] px-[74px] py-[86px] text-slate-950 shadow-sm ring-1 ring-slate-200 print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none print:ring-0"
+        className="mx-auto min-h-[1120px] w-full max-w-[1280px] overflow-hidden bg-[#fffefd] px-4 py-8 text-slate-950 shadow-sm ring-1 ring-slate-200 sm:px-8 md:px-12 lg:px-[74px] lg:py-[86px] print:min-h-0 print:max-w-none print:overflow-visible print:px-0 print:py-0 print:shadow-none print:ring-0"
         style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
       >
-        <div className="grid grid-cols-[240px_1fr] items-center">
+        <div className="grid gap-6 md:grid-cols-[240px_1fr] md:items-center">
           <div>
             <p className="text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-500">Servicio local de educación pública</p>
             <div className="mt-2 leading-[0.82]">
@@ -207,23 +240,23 @@ export default function LocationInventorySheetPage() {
             <p className="text-[9px] font-medium leading-tight text-slate-600">Teodoro Schmidt | Toltén</p>
           </div>
 
-          <div className="pt-20 text-center">
+          <div className="text-center md:pt-20">
             <p className="text-[13px] font-semibold text-[#12335c]">Servicio Local de Educación Pública Costa Araucanía</p>
             <p className="text-[13px] font-semibold text-slate-900">Hoja Mural de Inventario de Bienes de Uso.</p>
           </div>
         </div>
 
-        <dl className="mt-16 grid max-w-[640px] grid-cols-[190px_1fr] gap-x-5 text-[13px] font-normal leading-[1.38]">
+        <dl className="mt-10 grid max-w-[760px] grid-cols-[150px_1fr] gap-x-5 text-[13px] font-normal leading-[1.38] sm:grid-cols-[190px_1fr] md:mt-16">
           <SheetMeta label="Nombre de Funcionario:" value={responsible} />
           <SheetMeta label="RUT:" value={rut} />
           <SheetMeta label="Dependencia:" value="Escuela Pública Alejandro Gorostiaga" />
-          <SheetMeta label="Ubicación:" value={data.location.name} />
+          <SheetMeta label="Ubicación:" value={sheet.location.name} />
           <SheetMeta label="Piso:" value={floor} />
           <SheetMeta label="Fecha de actualización:" value={formatLongSpanishDate(updatedAt)} />
           <SheetMeta label="Página:" value="1 de 1" />
         </dl>
 
-        <div className="mt-5 overflow-x-auto rounded-sm ring-1 ring-slate-200 print:overflow-visible print:ring-0">
+        <div className="mt-5 max-h-[68vh] overflow-auto overscroll-contain rounded-sm ring-1 ring-slate-200 print:max-h-none print:overflow-visible print:ring-0">
           <table className="w-full min-w-[960px] table-fixed border-collapse text-[10px] font-normal leading-tight text-slate-950 print:min-w-[830px]">
             <colgroup>
               <col className="w-[44px]" />
@@ -236,7 +269,7 @@ export default function LocationInventorySheetPage() {
               <col className="w-[60px]" />
               <col className="w-[130px] print:hidden" />
             </colgroup>
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-[#dbeafe] text-[#0f315e]">
                 <SheetTh>N°</SheetTh>
                 <SheetTh>Código del bien</SheetTh>
@@ -250,7 +283,7 @@ export default function LocationInventorySheetPage() {
               </tr>
             </thead>
             <tbody>
-              {data.assets.map((asset, index) => {
+              {sheet.assets.map((asset, index) => {
                 const originalCode = importedValue(asset.description, "Código original") ?? asset.assetCode;
                 const description = visibleDescription(asset.description);
                 return (
@@ -298,8 +331,8 @@ export default function LocationInventorySheetPage() {
         <div className="mt-4 border border-[#334155] bg-[#fff7ed] p-2 text-[9px] leading-snug text-slate-700">
           <p className="font-semibold text-[#9a3412]">Datos de Responsabilidad de Bienes de Uso</p>
           <p><span className="font-semibold text-slate-900">A cargo de:</span> {responsible || "Sin responsable"}</p>
-          <p><span className="font-semibold text-slate-900">Ubicación:</span> {data.location.path}</p>
-          <p><span className="font-semibold text-slate-900">Total de bienes:</span> {data.assets.length}</p>
+          <p><span className="font-semibold text-slate-900">Ubicación:</span> {sheet.location.path}</p>
+          <p><span className="font-semibold text-slate-900">Total de bienes:</span> {sheet.assets.length}</p>
         </div>
 
         <div className="mt-10 grid grid-cols-2 gap-16 text-center text-[10px] text-slate-700">
@@ -308,7 +341,7 @@ export default function LocationInventorySheetPage() {
         </div>
       </section>
 
-      <Modal open={modalOpen} onClose={() => !busy && setModalOpen(false)} title={editingAsset ? "Editar bien de la ficha" : `Agregar bien a ${data.location.name}`}>
+      <Modal open={modalOpen} onClose={() => !busy && setModalOpen(false)} title={editingAsset ? "Editar bien de la ficha" : `Agregar bien a ${sheet.location.name}`}>
         <form onSubmit={submitAsset} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Código del bien" hint="Déjelo vacío para generar el siguiente código automáticamente.">
@@ -355,7 +388,7 @@ export default function LocationInventorySheetPage() {
             <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} maxLength={500} />
           </Field>
           <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-            Se guardará en la ubicación: <span className="font-semibold">{data.location.path || data.location.name}</span>.
+            Se guardará en la ubicación: <span className="font-semibold">{sheet.location.path || sheet.location.name}</span>.
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={busy}>Cancelar</Button>
@@ -416,6 +449,15 @@ function visibleDescription(description?: string | null) {
     .map((part) => part.trim())
     .filter((part) => part && !/^(Código original|Ubicación detalle origen|Piso\/Sector|Sector|RUT responsable):/i.test(part))
     .join(" | ");
+}
+
+function mergeVisibleDescription(originalDescription: string | null | undefined, visibleValue: string) {
+  const preservedImportedParts = (originalDescription ?? "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter((part) => /^(Código original|Ubicación detalle origen|Piso\/Sector|Sector|RUT responsable):/i.test(part));
+
+  return [visibleValue.trim(), ...preservedImportedParts].filter(Boolean).join(" | ");
 }
 
 function mainResponsible(assets: AssetDTO[]) {

@@ -11,10 +11,12 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Menu,
   PackageSearch,
   Tags,
   UserRoundCog,
   UsersRound,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -206,6 +208,8 @@ export function AppShell({
 
   const [mounted, setMounted] =
     useState(false);
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -280,11 +284,26 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-[#F5F7F8] text-slate-900">
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px] lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* =====================================================
           SIDEBAR FIJO
       ===================================================== */}
 
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[260px] border-r border-slate-200 bg-white lg:flex lg:flex-col">
+      <aside
+        className={[
+          "fixed inset-y-0 left-0 z-50 w-[280px] border-r border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:w-[260px] lg:shadow-none",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          "flex flex-col",
+        ].join(" ")}
+      >
         {/* BRAND */}
 
         <div className="flex h-[76px] shrink-0 items-center gap-3 border-b border-slate-100 px-5">
@@ -301,6 +320,15 @@ export function AppShell({
               Gestión institucional
             </p>
           </div>
+
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden"
+          >
+            <X size={19} />
+          </button>
         </div>
 
         {/* =====================================================
@@ -320,7 +348,7 @@ export function AppShell({
             [scrollbar-width:none]
           "
         >
-<nav className="space-y-1">
+          <nav className="space-y-1" onClick={() => setMobileOpen(false)}>
             {items.map(
               (item) => (
                 <NavLink
@@ -346,7 +374,7 @@ export function AppShell({
                 </p>
               </div>
 
-              <nav className="space-y-1">
+              <nav className="space-y-1" onClick={() => setMobileOpen(false)}>
                 {adminItems.map(
                   (item) => (
                     <NavLink
@@ -402,15 +430,26 @@ export function AppShell({
 
         <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
           <div className="flex h-[76px] items-center justify-between px-5 md:px-8">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-slate-400">
-                Inventario Escolar
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                aria-label="Abrir menú"
+                onClick={() => setMobileOpen(true)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 lg:hidden"
+              >
+                <Menu size={20} />
+              </button>
 
-              <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950">
-                {currentPage?.label ??
-                  "Panel"}
-              </h1>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-slate-400">
+                  Inventario Escolar
+                </p>
+
+                <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950">
+                  {currentPage?.label ??
+                    "Panel"}
+                </h1>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -439,7 +478,7 @@ export function AppShell({
         {/* CONTENIDO */}
 
         <main className="min-h-[calc(100vh-76px)]">
-          <div className="mx-auto w-full max-w-[1480px] px-5 py-6 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 md:px-8 md:py-8">
             {children}
           </div>
         </main>

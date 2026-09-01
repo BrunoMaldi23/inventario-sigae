@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
   roleId: string;
   role: RoleName;
   permissions: string[];
@@ -160,6 +161,7 @@ export interface UserDTO {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string | null;
   roleId: string;
   role?: { id: string; name: string } | null;
   active: boolean;

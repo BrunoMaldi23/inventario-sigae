@@ -64,6 +64,7 @@ export interface UserDTO {
   id: UUID;
   email: string;
   name: string;
+  avatarUrl: string | null;
   roleId: UUID;
   role?: RoleDTO;
   active: boolean;
@@ -76,6 +77,7 @@ export interface AuthUser {
   id: UUID;
   email: string;
   name: string;
+  avatarUrl: string | null;
   roleId: UUID;
   role: RoleName;
   permissions: PermissionCode[];

@@ -814,6 +814,17 @@ export function serializeMovement(m: any): AssetMovementDTO {
       : null,
     toStatus: m.toStatus ? { id: m.toStatus.id, name: m.toStatus.name, color: m.toStatus.color, sortOrder: m.toStatus.sortOrder, active: m.toStatus.active } : null,
     fromStatus: m.fromStatus ? { id: m.fromStatus.id, name: m.fromStatus.name, color: m.fromStatus.color, sortOrder: m.fromStatus.sortOrder, active: m.fromStatus.active } : null,
-    performedBy: m.performedBy ? { id: m.performedBy.id, email: m.performedBy.email, name: m.performedBy.name, roleId: '', active: true, createdAt: '', updatedAt: '' } : null,
+    performedBy: m.performedBy
+      ? {
+          id: m.performedBy.id,
+          email: m.performedBy.email,
+          name: m.performedBy.name,
+          avatarUrl: m.performedBy.avatarUrl ?? null,
+          roleId: '',
+          active: true,
+          createdAt: '',
+          updatedAt: '',
+        }
+      : null,
   };
 }

@@ -9,13 +9,14 @@ describe('AuthService.me', () => {
           id: 'u1',
           email: 'a@b.cl',
           name: 'A',
+          avatarUrl: null,
           roleId: 'r1',
           role: { name: 'SUPER_ADMIN', permissions: [{ permission: { code: 'ASSET_READ' } }] },
         }),
       },
     } as unknown as PrismaService;
 
-    const service = new AuthService(prisma as never, {} as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, {} as never, {} as never);
 
     const profile = await service.me('u1');
     expect(profile.role).toBe('SUPER_ADMIN');

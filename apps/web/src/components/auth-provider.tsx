@@ -10,6 +10,7 @@ interface AuthContextValue {
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (user: AuthUser) => void;
   hasPermission: (code: string) => boolean;
 }
 
@@ -78,9 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   }, [router]);
 
+  const updateUser = useCallback((nextUser: AuthUser) => {
+    setStoredUser(nextUser);
+    setUser(nextUser);
+  }, []);
+
   const hasPermission = useCallback((code: string) => user?.permissions?.includes(code) ?? false, [user]);
 
-  const value = useMemo(() => ({ user, ready, login, logout, hasPermission }), [user, ready, login, logout, hasPermission]);
+  const value = useMemo(
+    () => ({ user, ready, login, logout, updateUser, hasPermission }),
+    [user, ready, login, logout, updateUser, hasPermission],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -15,6 +15,7 @@ function serialize(user: any): UserDTO {
     id: user.id,
     email: user.email,
     name: user.name,
+    avatarUrl: user.avatarUrl,
     roleId: user.roleId,
     active: user.active,
     createdAt: user.createdAt.toISOString(),

@@ -3,6 +3,7 @@
 import {
   Boxes,
   Building2,
+  Camera,
   ChevronRight,
   ClipboardList,
   FileDown,
@@ -13,7 +14,9 @@ import {
   MapPin,
   Menu,
   PackageSearch,
+  Save,
   Tags,
+  UserRound,
   UserRoundCog,
   UsersRound,
   X,
@@ -22,11 +25,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ReactNode,
+  useMemo,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 import { useAuth } from "@/components/auth-provider";
+import { Modal } from "@/components/modal";
+import { useToast } from "@/components/toast";
+import { Button, Field, Input } from "@/components/ui";
+import { apiAssetUrl, apiPatch, apiUpload } from "@/lib/api";
+import type { AuthUser } from "@/lib/types";
 
 const NAV: {
   href: string;
@@ -158,9 +168,13 @@ function NavLink({
 function SidebarUser({
   name,
   email,
+  avatarUrl,
+  onOpenProfile,
 }: {
   name: string;
   email: string;
+  avatarUrl?: string | null;
+  onOpenProfile: () => void;
 }) {
   const initials = name
     .split(" ")
@@ -171,11 +185,23 @@ function SidebarUser({
     .toUpperCase();
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+    <button
+      type="button"
+      onClick={onOpenProfile}
+      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50/60"
+    >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-sm font-semibold text-white">
-          {initials || "US"}
-        </div>
+        {avatarUrl ? (
+          <img
+            src={apiAssetUrl(avatarUrl) ?? ""}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+          />
+        ) : (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-sm font-semibold text-white">
+            {initials || "US"}
+          </div>
+        )}
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-900">
@@ -187,7 +213,214 @@ function SidebarUser({
           </p>
         </div>
       </div>
-    </div>
+    </button>
+  );
+}
+
+function ProfileModal({
+  open,
+  user,
+  onClose,
+  onUpdated,
+}: {
+  open: boolean;
+  user: AuthUser;
+  onClose: () => void;
+  onUpdated: (user: AuthUser) => void;
+}) {
+  const { notify } = useToast();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(user.name);
+    setEmail(user.email);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }, [open, user.email, user.name]);
+
+  const avatarSrc = apiAssetUrl(user.avatarUrl);
+  const initials = useMemo(
+    () =>
+      user.name
+        .split(" ")
+        .filter(Boolean)
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+    [user.name],
+  );
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    try {
+      const updated = await apiPatch<AuthUser>("/auth/profile", {
+        name,
+        email,
+      });
+      onUpdated(updated);
+      notify("Perfil actualizado");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo actualizar el perfil", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function savePassword() {
+    if (newPassword !== confirmPassword) {
+      notify("La confirmación no coincide", "error");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await apiPatch<{ success: boolean }>("/auth/password", {
+        currentPassword,
+        newPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      notify("Contraseña actualizada");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo cambiar la contraseña", "error");
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
+  async function uploadAvatar(file: File | undefined) {
+    if (!file) return;
+    setSavingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const updated = await apiUpload<AuthUser>("/auth/avatar", fd);
+      onUpdated(updated);
+      notify("Avatar actualizado");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo subir el avatar", "error");
+    } finally {
+      setSavingAvatar(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Perfil de usuario" size="lg">
+      <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col items-center text-center">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="h-28 w-28 rounded-2xl object-cover ring-1 ring-slate-200"
+              />
+            ) : (
+              <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-emerald-700 text-2xl font-semibold text-white">
+                {initials || "US"}
+              </div>
+            )}
+            <p className="mt-3 text-sm font-semibold text-slate-950">{user.name}</p>
+            <p className="mt-1 max-w-full truncate text-xs text-slate-500">{user.email}</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => void uploadAvatar(event.target.files?.[0])}
+            />
+            <Button
+              className="mt-4 w-full"
+              variant="secondary"
+              loading={savingAvatar}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Camera size={16} />
+              Cambiar avatar
+            </Button>
+          </div>
+        </section>
+
+        <div className="space-y-5">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <UserRound size={17} className="text-emerald-700" />
+              Datos de cuenta
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Nombre" required>
+                <Input value={name} onChange={(event) => setName(event.target.value)} />
+              </Field>
+              <Field label="Correo electrónico" required>
+                <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+              </Field>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button loading={savingProfile} onClick={() => void saveProfile()}>
+                <Save size={16} />
+                Guardar perfil
+              </Button>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <UserRoundCog size={17} className="text-indigo-600" />
+              Cambiar contraseña
+            </div>
+            <div className="grid gap-3">
+              <Field label="Contraseña actual" required>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nueva contraseña" required>
+                  <Input
+                    type="password"
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                  />
+                </Field>
+                <Field label="Confirmar contraseña" required>
+                  <Input
+                    type="password"
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                </Field>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="secondary"
+                loading={savingPassword}
+                disabled={!currentPassword || !newPassword || !confirmPassword}
+                onClick={() => void savePassword()}
+              >
+                Actualizar contraseña
+              </Button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -200,6 +433,7 @@ export function AppShell({
     user,
     ready,
     logout,
+    updateUser,
     hasPermission,
   } = useAuth();
 
@@ -209,6 +443,8 @@ export function AppShell({
   const [mounted, setMounted] =
     useState(false);
   const [mobileOpen, setMobileOpen] =
+    useState(false);
+  const [profileOpen, setProfileOpen] =
     useState(false);
 
   useEffect(() => {
@@ -407,6 +643,8 @@ export function AppShell({
           <SidebarUser
             name={user.name}
             email={user.email}
+            avatarUrl={user.avatarUrl}
+            onOpenProfile={() => setProfileOpen(true)}
           />
 
           <button
@@ -467,10 +705,23 @@ export function AppShell({
                 </Link>
               )}
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-xs font-semibold text-white lg:hidden">
-                {initials ||
-                  "US"}
-              </div>
+              <button
+                type="button"
+                aria-label="Abrir perfil"
+                onClick={() => setProfileOpen(true)}
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-emerald-700 text-xs font-semibold text-white ring-1 ring-slate-200 lg:hidden"
+              >
+                {user.avatarUrl ? (
+                  <img
+                    src={apiAssetUrl(user.avatarUrl) ?? ""}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initials ||
+                  "US"
+                )}
+              </button>
             </div>
           </div>
         </header>
@@ -483,6 +734,13 @@ export function AppShell({
           </div>
         </main>
       </div>
+
+      <ProfileModal
+        open={profileOpen}
+        user={user}
+        onClose={() => setProfileOpen(false)}
+        onUpdated={updateUser}
+      />
     </div>
   );
 }

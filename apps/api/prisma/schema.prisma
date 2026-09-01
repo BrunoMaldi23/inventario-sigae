@@ -21,6 +21,8 @@ model User {
   email         String    @unique
   passwordHash  String
   name          String
+  avatarUrl     String?
+  avatarKey     String?
   roleId        String    @db.Uuid
   role          Role      @relation(fields: [roleId], references: [id])
 

@@ -37,11 +37,6 @@ import { ImportsModule } from './imports/imports.module';
         ttl: 60000,
         limit: 120,
       },
-      {
-        name: 'auth',
-        ttl: 60000,
-        limit: 20,
-      },
     ]),
     PrismaModule,
     AuditModule,

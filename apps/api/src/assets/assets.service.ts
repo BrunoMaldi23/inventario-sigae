@@ -361,13 +361,19 @@ const items = result.items.map((a: any) => ({
   /* ------------------------------------------------------------------ */
 
   async create(dto: CreateAssetDto, user: AuthUser): Promise<AssetDTO> {
-    let assetCode = dto.assetCode?.trim().toUpperCase();
+    const providedAssetCode = dto.assetCode?.trim();
+    let assetCode = providedAssetCode?.toUpperCase();
     if (assetCode) {
       const dup = await this.prisma.asset.findUnique({ where: { assetCode } });
       if (dup) throw conflict(`El código ${assetCode} ya está en uso`);
     } else {
       assetCode = await this.generateNextAssetCode();
     }
+    const description = dto.description?.trim() || null;
+    const storedDescription =
+      providedAssetCode || description?.match(/(^|\|)\s*Código original HM:/i)
+        ? description
+        : [description, 'Código original HM: Sin código'].filter(Boolean).join(' | ');
 
     return this.prisma.withTransaction(async (tx) => {
       if (dto.statusId) await this.ensureExists(tx, 'assetStatus', dto.statusId, 'Estado');
@@ -379,7 +385,7 @@ const items = result.items.map((a: any) => ({
         data: {
           assetCode,
           name: dto.name,
-          description: dto.description ?? null,
+          description: storedDescription,
           brand: dto.brand ?? null,
           model: dto.model ?? null,
           serialNumber: dto.serialNumber ?? null,

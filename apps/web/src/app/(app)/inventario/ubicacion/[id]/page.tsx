@@ -266,26 +266,32 @@ export default function LocationInventorySheetPage() {
       </div>
 
       <section
-        className="mx-auto min-h-[1120px] w-full max-w-[1280px] overflow-hidden bg-[#fffefd] px-4 py-8 text-slate-950 shadow-sm ring-1 ring-slate-200 sm:px-8 md:px-12 lg:px-[74px] lg:py-[86px] print:min-h-0 print:max-w-none print:overflow-visible print:px-0 print:py-0 print:shadow-none print:ring-0"
+        className="print-sheet mx-auto min-h-[1120px] w-full max-w-[1280px] overflow-hidden bg-[#fffefd] px-4 py-8 text-slate-950 shadow-sm ring-1 ring-slate-200 sm:px-8 md:px-12 lg:px-[74px] lg:py-[72px] print:min-h-0 print:max-w-none print:overflow-visible print:px-0 print:py-0 print:shadow-none print:ring-0"
         style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
       >
-        <div className="grid gap-6 md:grid-cols-[240px_1fr] md:items-center">
+        <div className="grid gap-5 md:grid-cols-[220px_1fr_120px] md:items-start print:grid-cols-[170px_1fr_90px] print:gap-4">
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/images/logo-costa-araucania.png"
               alt="Servicio Local de Educación Pública Costa Araucanía"
-              className="h-auto w-[220px] max-w-full print:w-[200px]"
+              className="h-auto w-[220px] max-w-full print:w-[155px]"
             />
           </div>
 
-          <div className="text-center md:pt-20">
-            <p className="text-[13px] font-semibold text-[#12335c]">Servicio Local de Educación Pública Costa Araucanía</p>
-            <p className="text-[13px] font-semibold text-slate-900">Hoja Mural de Inventario de Bienes de Uso.</p>
+          <div className="text-center md:pt-10 print:pt-8">
+            <p className="text-[13px] font-semibold text-[#12335c] print:text-[10px]">Servicio Local de Educación Pública Costa Araucanía</p>
+            <p className="text-[13px] font-semibold text-slate-900 print:text-[10px]">Hoja Mural de Inventario de Bienes de Uso.</p>
+          </div>
+
+          <div className="hidden text-center text-[7px] leading-tight text-slate-700 md:block">
+            <div className="ml-auto flex h-[76px] w-[76px] items-center justify-center border border-slate-300 text-[8px] text-slate-400 print:h-[62px] print:w-[62px]">
+              QR
+            </div>
           </div>
         </div>
 
-        <dl className="mt-10 grid max-w-[760px] grid-cols-[150px_1fr] gap-x-5 text-[13px] font-normal leading-[1.38] sm:grid-cols-[190px_1fr] md:mt-16">
+        <dl className="mt-10 grid max-w-[760px] grid-cols-[150px_1fr] gap-x-5 text-[13px] font-normal leading-[1.38] sm:grid-cols-[190px_1fr] md:mt-12 print:mt-8 print:max-w-[620px] print:grid-cols-[150px_1fr] print:text-[9px] print:leading-[1.25]">
           <SheetMeta label="Nombre de Funcionario:" value={responsible} />
           <SheetMeta label="RUT:" value={rut} />
           <SheetMeta label="Dependencia:" value="Escuela Pública Alejandro Gorostiaga" />
@@ -295,21 +301,21 @@ export default function LocationInventorySheetPage() {
           <SheetMeta label="Página:" value="1 de 1" />
         </dl>
 
-        <div className="mt-5 max-h-[68vh] overflow-auto overscroll-contain rounded-sm ring-1 ring-slate-200 print:max-h-none print:overflow-visible print:ring-0">
-          <table className="w-full min-w-[960px] table-fixed border-collapse text-[10px] font-normal leading-tight text-slate-950 print:min-w-[830px]">
+        <div className="mt-5 max-h-[68vh] overflow-x-auto overflow-y-auto overscroll-contain rounded-sm ring-1 ring-slate-200 print:mt-4 print:max-h-none print:overflow-visible print:ring-0">
+          <table className="w-full min-w-[760px] table-fixed border-collapse text-[9px] font-normal leading-tight text-slate-950 sm:min-w-0 sm:text-[10px] print:min-w-0 print:text-[7.2px] print:leading-[1.12]">
             <colgroup>
-              <col className="w-[44px]" />
-              <col className="w-[112px]" />
-              <col className="w-[150px]" />
-              <col className="w-[248px]" />
-              <col className="w-[78px]" />
-              <col className="w-[88px]" />
-              <col className="w-[104px]" />
-              <col className="w-[60px]" />
-              <col className="w-[130px] print:hidden" />
+              <col className="w-[5%]" />
+              <col className="w-[14%]" />
+              <col className="w-[17%]" />
+              <col className="w-[30%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[5%]" />
+              <col className="w-[12%] print:hidden" />
             </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-[#dbeafe] text-[#0f315e]">
+            <thead className="sticky top-0 z-10 print:static">
+              <tr className="bg-[#d7d7d7] text-slate-950">
                 <SheetTh>N°</SheetTh>
                 <SheetTh>Código del bien</SheetTh>
                 <SheetTh>Denominación</SheetTh>
@@ -362,19 +368,19 @@ export default function LocationInventorySheetPage() {
           </table>
         </div>
 
-        <div className="mt-5 border border-[#334155] bg-[#f8fafc] p-2 text-[9px] leading-snug text-slate-700">
+        <div className="mt-5 border border-[#334155] bg-[#f8fafc] p-2 text-[9px] leading-snug text-slate-700 print:mt-4 print:text-[6.8px]">
           <p className="font-semibold text-[#0f315e]">NOTA:</p>
           <p>Los bienes detallados en esta hoja mural deben permanecer registrados en la ubicación indicada. Cualquier traslado, cambio de estado o ajuste debe quedar actualizado en el sistema de inventario institucional.</p>
         </div>
 
-        <div className="mt-4 border border-[#334155] bg-[#fff7ed] p-2 text-[9px] leading-snug text-slate-700">
+        <div className="mt-4 border border-[#334155] bg-[#fff7ed] p-2 text-[9px] leading-snug text-slate-700 print:mt-3 print:text-[6.8px]">
           <p className="font-semibold text-[#9a3412]">Datos de Responsabilidad de Bienes de Uso</p>
           <p><span className="font-semibold text-slate-900">A cargo de:</span> {responsible || "Sin responsable"}</p>
           <p><span className="font-semibold text-slate-900">Ubicación:</span> {sheet.location.path}</p>
           <p><span className="font-semibold text-slate-900">Total de bienes:</span> {sheet.assets.length}</p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-16 text-center text-[10px] text-slate-700">
+        <div className="mt-10 grid grid-cols-2 gap-16 text-center text-[10px] text-slate-700 print:mt-8 print:text-[7px]">
           <div className="border-t border-[#334155] pt-2">Firma funcionario responsable</div>
           <div className="border-t border-[#334155] pt-2">Firma encargado inventario</div>
         </div>
@@ -488,7 +494,7 @@ function SheetMeta({ label, value }: { label: string; value?: string | null }) {
 }
 
 function SheetTh({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`border border-[#334155] px-1.5 py-2 text-center font-semibold ${className}`}>{children}</th>;
+  return <th className={`border border-[#1f2937] px-1 py-1.5 text-center font-semibold print:px-0.5 print:py-0.5 ${className}`}>{children}</th>;
 }
 
 function SheetTd({
@@ -500,7 +506,7 @@ function SheetTd({
   center?: boolean;
   className?: string;
 }) {
-  return <td className={`break-words border border-[#475569] px-1 py-0.5 align-top ${center ? "text-center" : ""} ${className ?? ""}`}>{children}</td>;
+  return <td className={`break-words border border-[#334155] px-1 py-0.5 align-top print:px-0.5 print:py-[1px] ${center ? "text-center" : ""} ${className ?? ""}`}>{children}</td>;
 }
 
 function importedValue(description: string | null | undefined, label: string) {

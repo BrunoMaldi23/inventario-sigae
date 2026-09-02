@@ -14,3 +14,26 @@ body {
   color: #0f172a;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    width: 100%;
+    min-height: 0;
+    background: #fff;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-sheet {
+    page-break-inside: avoid;
+  }
+}

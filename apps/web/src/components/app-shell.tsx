@@ -519,7 +519,7 @@ export function AppShell({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#F5F7F8] text-slate-900">
+    <div className="min-h-screen bg-[#F5F7F8] text-slate-900 print:bg-white">
       {mobileOpen && (
         <button
           type="button"
@@ -535,7 +535,7 @@ export function AppShell({
 
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-50 w-[280px] border-r border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:w-[260px] lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 w-[280px] border-r border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:w-[260px] lg:shadow-none print:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           "flex flex-col",
         ].join(" ")}
@@ -663,10 +663,10 @@ export function AppShell({
           CONTENIDO PRINCIPAL
       ===================================================== */}
 
-      <div className="min-h-screen lg:pl-[260px]">
+      <div className="min-h-screen lg:pl-[260px] print:min-h-0 print:pl-0">
         {/* HEADER */}
 
-        <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur print:hidden">
           <div className="flex h-[76px] items-center justify-between px-5 md:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
@@ -728,8 +728,8 @@ export function AppShell({
 
         {/* CONTENIDO */}
 
-        <main className="min-h-[calc(100vh-76px)]">
-          <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 md:px-8 md:py-8">
+        <main className="min-h-[calc(100vh-76px)] print:min-h-0">
+          <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 md:px-8 md:py-8 print:max-w-none print:p-0">
             {children}
           </div>
         </main>

@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    const apiProxyUrl = process.env.API_PROXY_URL;
+    const apiProxyUrl =
+      process.env.NODE_ENV === "production"
+        ? "https://debian-server.tailfb30e3.ts.net/inventario"
+        : (process.env.INVENTARIO_API_PROXY_URL ?? process.env.API_PROXY_URL);
     if (!apiProxyUrl) return [];
 
     return [

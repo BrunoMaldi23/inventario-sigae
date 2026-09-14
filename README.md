@@ -13,7 +13,7 @@ Paquetes compartidos: `packages/types`, `packages/config`, `packages/validation`
 ## Arquitectura
 
 ```
-Navegador (Vercel) ──HTTPS──▶ https://debian-server.tailfb30e3.ts.net/api  (Tailscale Funnel)
+Navegador (Vercel) ──HTTPS──▶ https://debian-server.tailfb30e3.ts.net/inventario/api  (Tailscale Funnel)
                                   │
                                   ▼
                          Servidor Debian (100.74.242.36)
@@ -34,7 +34,7 @@ Navegador (Vercel) ──HTTPS──▶ https://debian-server.tailfb30e3.ts.net/
 
 ```powershell
 cd apps/web
-Copy-Item .env.example .env.local   # NEXT_PUBLIC_API_URL=/api, API_PROXY_URL=http://localhost:3000
+Copy-Item .env.example .env.local   # API_PROXY_URL=http://localhost:3000
 pnpm dev                            # http://localhost:3001
 ```
 
@@ -56,11 +56,13 @@ pnpm --filter api lint;  pnpm --filter api typecheck; pnpm --filter api build; p
 
 ```powershell
 cd apps/web
-npx vercel env add NEXT_PUBLIC_API_URL       # en entornos preview y production:
-#   valor: /api
-npx vercel env add API_PROXY_URL             # en entornos preview y production:
-#   valor: URL base pública de la API de inventario, sin /api.
-#   Debe responder /api/health con service="inventario-api".
+# En production la web usa siempre el proxy /api de Next.js y ese proxy apunta a:
+# https://debian-server.tailfb30e3.ts.net/inventario
+#
+# Para preview o desarrollo remoto opcional:
+npx vercel env add INVENTARIO_API_PROXY_URL
+#   valor: URL base pública de inventario, sin /api.
+#   Debe responder /api/health con la respuesta del inventario.
 npx vercel deploy --prod --yes
 ```
 
@@ -81,7 +83,7 @@ pnpm exec turbo run build --filter=api
 pm2 restart inventario-api                  # ojo: apps/api/.env se conserva (no está en git)
 ```
 
-Funnel (si se resetea el server): `sudo tailscale funnel --bg 3000`.
+Funnel (si se resetea el server): mantener `/api` para asistencia y `/inventario` para inventario.
 
 ## Limpieza de BD
 

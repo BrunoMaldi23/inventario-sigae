@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 
 const API_PROXY_URL =
-  process.env.INVENTARIO_API_PROXY_URL ??
-  (process.env.NODE_ENV === "production" ? undefined : process.env.API_PROXY_URL) ??
-  (process.env.NODE_ENV === "production"
+  process.env.NODE_ENV === "production"
     ? "https://debian-server.tailfb30e3.ts.net/inventario"
-    : "http://localhost:3000");
+    : (process.env.INVENTARIO_API_PROXY_URL ?? process.env.API_PROXY_URL ?? "http://localhost:3000");
 
 async function proxyFile(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   if (!API_PROXY_URL) {

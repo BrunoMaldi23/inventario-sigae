@@ -320,18 +320,16 @@ export default function LocationInventorySheetPage() {
           rut: nextRut,
         }),
       });
-      const updatedAssets = await Promise.all(
-        currentSheet.assets.map((asset) =>
-          apiPatch<AssetDTO>(`/assets/${asset.id}`, {
-            description: mergeSheetMetadata(asset.description, {
-              dependency: nextDependency,
-              sourceLocation: nextLocationName,
-              floor: nextFloor,
-              rut: nextRut,
-            }),
-            responsibleId: matchingResponsible?.id ?? asset.responsibleId ?? undefined,
+      const updatedAssets = await mapWithConcurrency(currentSheet.assets, 6, (asset) =>
+        apiPatch<AssetDTO>(`/assets/${asset.id}`, {
+          description: mergeSheetMetadata(asset.description, {
+            dependency: nextDependency,
+            sourceLocation: nextLocationName,
+            floor: nextFloor,
+            rut: nextRut,
           }),
-        ),
+          responsibleId: matchingResponsible?.id ?? asset.responsibleId ?? undefined,
+        }),
       );
 
       setSheetData((current) =>
@@ -815,6 +813,26 @@ function findFloorByName(locations: LocationDTO[], name: string) {
   const target = normalizeLookup(name);
   if (!target) return undefined;
   return locations.find((item) => item.type === "floor" && normalizeLookup(item.name) === target);
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  task: (item: T, index: number) => Promise<R>,
+) {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await task(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
 
 function normalizeLookup(value: string) {

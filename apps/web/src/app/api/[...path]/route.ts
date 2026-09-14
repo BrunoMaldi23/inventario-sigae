@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 
-const API_PROXY_URL = process.env.API_PROXY_URL ?? (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
+const API_PROXY_URL =
+  process.env.API_PROXY_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://debian-server.tailfb30e3.ts.net/inventario"
+    : "http://localhost:3000");
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   if (!API_PROXY_URL) {

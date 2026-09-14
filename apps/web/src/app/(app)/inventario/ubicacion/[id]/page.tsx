@@ -116,10 +116,10 @@ export default function LocationInventorySheetPage() {
     const timeoutId = window.setTimeout(() => {
       setHeaderForm({
         responsibleName: mainResponsible(currentSheet.assets) ?? "",
-        rut: firstImportedValue(currentSheet.assets, "RUT responsable") ?? "",
-        dependency: firstImportedValue(currentSheet.assets, "Dependencia") ?? DEFAULT_DEPENDENCY,
+        rut: sheetHeaderValue(currentSheet, "RUT responsable") ?? "",
+        dependency: sheetHeaderValue(currentSheet, "Dependencia") ?? DEFAULT_DEPENDENCY,
         locationName: currentSheet.location.name,
-        floor: firstImportedValue(currentSheet.assets, "Piso/Sector") ?? firstImportedValue(currentSheet.assets, "Sector") ?? "",
+        floor: sheetHeaderValue(currentSheet, "Piso/Sector") ?? sheetHeaderValue(currentSheet, "Sector") ?? "",
       });
       setAutoOpenedHeaderLocationId(currentSheet.location.id);
       setHeaderModalOpen(true);
@@ -150,9 +150,9 @@ export default function LocationInventorySheetPage() {
   }
 
   const responsible = mainResponsible(sheet.assets);
-  const rut = firstImportedValue(sheet.assets, "RUT responsable");
-  const dependency = firstImportedValue(sheet.assets, "Dependencia") ?? DEFAULT_DEPENDENCY;
-  const floor = firstImportedValue(sheet.assets, "Piso/Sector") ?? firstImportedValue(sheet.assets, "Sector");
+  const rut = sheetHeaderValue(sheet, "RUT responsable");
+  const dependency = sheetHeaderValue(sheet, "Dependencia") ?? DEFAULT_DEPENDENCY;
+  const floor = sheetHeaderValue(sheet, "Piso/Sector") ?? sheetHeaderValue(sheet, "Sector");
   const updatedAt = latestUpdatedAt(sheet.assets);
 
   function openHeaderEditor() {
@@ -302,22 +302,23 @@ export default function LocationInventorySheetPage() {
       return;
     }
 
-    const matchingFloor = findFloorByName(locations ?? [], headerForm.floor);
-    if (headerForm.floor.trim() && !matchingFloor) {
-      notify("El piso no existe en Ubicaciones. Créelo primero para poder asociarlo.", "error");
-      return;
-    }
-
     const nextLocationName = headerForm.locationName.trim();
     const nextRut = headerForm.rut.trim();
     const nextDependency = headerForm.dependency.trim() || DEFAULT_DEPENDENCY;
     const nextFloor = headerForm.floor.trim();
+    const matchingFloor = findFloorByName(locations ?? [], nextFloor);
 
     setHeaderBusy(true);
     try {
       const updatedLocation = await apiPatch<LocationDTO>(`/locations/${currentSheet.location.id}`, {
         name: nextLocationName,
-        parentId: matchingFloor?.id ?? currentSheet.location.parentId ?? undefined,
+        parentId: matchingFloor?.id ?? undefined,
+        description: mergeSheetMetadata(currentSheet.location.description, {
+          dependency: nextDependency,
+          sourceLocation: nextLocationName,
+          floor: nextFloor,
+          rut: nextRut,
+        }),
       });
       const updatedAssets = await Promise.all(
         currentSheet.assets.map((asset) =>
@@ -733,6 +734,10 @@ function firstImportedValue(assets: AssetDTO[], label: string) {
     if (value) return value;
   }
   return undefined;
+}
+
+function sheetHeaderValue(sheet: LocationSheet, label: string) {
+  return firstImportedValue(sheet.assets, label) ?? importedValue(sheet.location.description, label);
 }
 
 function visibleDescription(description?: string | null) {

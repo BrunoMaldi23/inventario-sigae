@@ -115,7 +115,7 @@ export default function FichaBienPage() {
         </div>
       </div>
 
-      <section className="mx-auto min-h-[1120px] w-full max-w-[980px] bg-white px-[74px] py-[86px] text-black shadow-sm ring-1 ring-slate-200 print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none print:ring-0">
+      <section className="print-sheet mx-auto min-h-[1120px] w-full max-w-[980px] bg-white px-[74px] py-[86px] text-black shadow-sm ring-1 ring-slate-200 print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none print:ring-0">
         <div className="grid grid-cols-[240px_1fr_130px] items-center">
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}

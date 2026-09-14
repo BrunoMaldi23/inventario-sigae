@@ -25,6 +25,7 @@ body {
   body {
     width: 100%;
     min-height: 0;
+    margin: 0;
     background: #fff;
   }
 
@@ -34,6 +35,12 @@ body {
   }
 
   .print-sheet {
+    box-sizing: border-box;
+    display: block;
+    width: calc(297mm - 20mm);
+    max-width: calc(297mm - 20mm);
+    margin-right: auto;
+    margin-left: auto;
     page-break-inside: avoid;
   }
 }

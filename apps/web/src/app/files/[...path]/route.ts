@@ -1,8 +1,20 @@
 import { NextRequest } from "next/server";
 
-const API_PROXY_URL = process.env.API_PROXY_URL ?? "https://debian-server.tailfb30e3.ts.net";
+const API_PROXY_URL = process.env.API_PROXY_URL ?? (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
 
 async function proxyFile(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  if (!API_PROXY_URL) {
+    return Response.json(
+      {
+        error: {
+          code: "API_PROXY_NOT_CONFIGURED",
+          message: "API_PROXY_URL no está configurado para conectar con los archivos del inventario.",
+        },
+      },
+      { status: 500 },
+    );
+  }
+
   const { path } = await context.params;
   const target = new URL(`/files/${path.join("/")}${request.nextUrl.search}`, API_PROXY_URL);
 
@@ -29,4 +41,3 @@ async function proxyFile(request: NextRequest, context: { params: Promise<{ path
 
 export const GET = proxyFile;
 export const HEAD = proxyFile;
-

@@ -36,6 +36,40 @@ const assetInclude = {
   attachments: true,
 } satisfies Prisma.AssetInclude;
 
+function isMissingAssetCodeInput(value?: string | null): boolean {
+  const normalized = (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return !normalized || normalized === 'sin codigo';
+}
+
+function isGeneratedAssetCode(value: string): boolean {
+  return new RegExp(`^${ASSET_CODE_PREFIX}-\\d+$`, 'i').test(value.trim());
+}
+
+function upsertDescriptionMetadata(
+  description: string | null | undefined,
+  label: string,
+  value: string,
+): string {
+  const normalizedLabel = label.toLowerCase();
+  const parts = (description ?? '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const colonIndex = part.indexOf(':');
+      if (colonIndex === -1) return true;
+      return part.slice(0, colonIndex).trim().toLowerCase() !== normalizedLabel;
+    });
+
+  parts.push(`${label}: ${value}`);
+  return parts.join(' | ');
+}
+
 type AssetWithRelations = Prisma.AssetGetPayload<{ include: typeof assetInclude }>;
 
 const locationGroupInclude = {
@@ -307,6 +341,7 @@ const items = result.items.map((a: any) => ({
         name: location.name,
         path: locationPath(location),
         type: location.type,
+        parentId: location.parentId,
         active: location.active,
         description: location.description,
       },
@@ -362,7 +397,8 @@ const items = result.items.map((a: any) => ({
 
   async create(dto: CreateAssetDto, user: AuthUser): Promise<AssetDTO> {
     const providedAssetCode = dto.assetCode?.trim();
-    let assetCode = providedAssetCode?.toUpperCase();
+    const hasProvidedAssetCode = !isMissingAssetCodeInput(providedAssetCode);
+    let assetCode = hasProvidedAssetCode ? providedAssetCode?.toUpperCase() : undefined;
     if (assetCode) {
       const dup = await this.prisma.asset.findUnique({ where: { assetCode } });
       if (dup) throw conflict(`El código ${assetCode} ya está en uso`);
@@ -371,7 +407,7 @@ const items = result.items.map((a: any) => ({
     }
     const description = dto.description?.trim() || null;
     const storedDescription =
-      providedAssetCode || description?.match(/(^|\|)\s*Código original HM:/i)
+      hasProvidedAssetCode || description?.match(/(^|\|)\s*Código original HM:/i)
         ? description
         : [description, 'Código original HM: Sin código'].filter(Boolean).join(' | ');
 
@@ -432,11 +468,23 @@ const items = result.items.map((a: any) => ({
         throw conflict('El bien fue modificado por otro usuario. Recargue los datos e intente nuevamente.');
       }
 
-      if (dto.assetCode && dto.assetCode.toUpperCase() !== existing.assetCode) {
-        const code = dto.assetCode.toUpperCase();
-        const dup = await tx.asset.findUnique({ where: { assetCode: code } });
-        if (dup) throw conflict(`El código ${code} ya está en uso`);
-        dto.assetCode = code;
+      if (dto.assetCode !== undefined) {
+        const providedAssetCode = dto.assetCode.trim();
+        if (isMissingAssetCodeInput(providedAssetCode)) {
+          dto.assetCode = isGeneratedAssetCode(existing.assetCode) ? existing.assetCode : await this.generateNextAssetCode(tx);
+          dto.description = upsertDescriptionMetadata(
+            dto.description ?? existing.description,
+            'Código original HM',
+            'Sin código',
+          );
+        } else if (providedAssetCode.toUpperCase() !== existing.assetCode) {
+          const code = providedAssetCode.toUpperCase();
+          const dup = await tx.asset.findUnique({ where: { assetCode: code } });
+          if (dup && dup.id !== existing.id) throw conflict(`El código ${code} ya está en uso`);
+          dto.assetCode = code;
+        } else {
+          dto.assetCode = existing.assetCode;
+        }
       }
 
 const data: Prisma.AssetUncheckedUpdateInput = {

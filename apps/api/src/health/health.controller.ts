@@ -18,6 +18,12 @@ export class HealthController {
     } catch {
       database = 'down';
     }
-    return { status: 'ok', uptime: Math.round(process.uptime()), database, timestamp: new Date().toISOString() };
+    return {
+      status: 'ok',
+      service: 'inventario-api',
+      uptime: Math.round(process.uptime()),
+      database,
+      timestamp: new Date().toISOString(),
+    };
   }
 }

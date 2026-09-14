@@ -7,6 +7,7 @@ import {
   Filter,
   MapPin,
   PackagePlus,
+  Pencil,
   Search,
   UserRound,
 } from "lucide-react";
@@ -433,6 +434,25 @@ export default function InventarioPage() {
 
                 <Td>
                   <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/inventario/ubicacion/${group.id}?editarFicha=1`}
+                      className="
+                        inline-flex
+                        items-center
+                        gap-1
+                        rounded-lg
+                        px-2.5
+                        py-1.5
+                        text-xs
+                        font-semibold
+                        text-emerald-700
+                        transition
+                        hover:bg-emerald-50
+                      "
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </Link>
                     <Link
                       href={`/inventario/ubicacion/${group.id}`}
                       className="

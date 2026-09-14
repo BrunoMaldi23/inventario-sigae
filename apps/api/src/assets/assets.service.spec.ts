@@ -8,10 +8,14 @@ function buildTxMock() {
   const tx = {
     asset: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
     },
-    location: { findFirst: jest.fn() },
-    responsible: { findFirst: jest.fn() },
+    assetStatus: { findUnique: jest.fn() },
+    assetCategory: { findUnique: jest.fn() },
+    location: { findFirst: jest.fn(), findUnique: jest.fn() },
+    responsible: { findFirst: jest.fn(), findUnique: jest.fn() },
     assetMovement: { create: jest.fn() },
     auditLog: { create: jest.fn() },
   };
@@ -131,5 +135,130 @@ describe('AssetsService.transfer', () => {
     await expect(
       service.transfer('asset-1', { toLocationId: 'loc-no-existe', type: 'TRANSFER', version: 1, reason: 'X' }, user),
     ).rejects.toThrow('no existe o está inactiva');
+  });
+});
+
+function buildAsset(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'asset-1',
+    assetCode: 'HM2026-000001',
+    name: 'Mesa',
+    description: 'Madera | Código original HM: Sin código',
+    brand: null,
+    model: null,
+    serialNumber: null,
+    qrCode: 'inventario://asset/asset-1',
+    barcode: null,
+    categoryId: null,
+    statusId: 'status-1',
+    locationId: null,
+    responsibleId: null,
+    acquisitionDate: null,
+    acquisitionValue: null,
+    supplier: null,
+    invoiceNumber: null,
+    purchaseOrder: null,
+    fundingSource: null,
+    provenance: null,
+    notes: null,
+    active: true,
+    version: 1,
+    deletedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-02T00:00:00Z'),
+    category: null,
+    status: { id: 'status-1', name: 'Bueno', color: '#16a34a', sortOrder: 1, active: true },
+    location: null,
+    responsible: null,
+    attachments: [],
+    ...overrides,
+  } as any;
+}
+
+describe('AssetsService assetCode sin codigo', () => {
+  it('crea con codigo interno y metadata sin codigo sin validar duplicado', async () => {
+    const tx = buildTxMock();
+    const prisma = {
+      asset: { findUnique: jest.fn() },
+      withTransaction: jest.fn(async (fn) => fn(tx)),
+    } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+    jest.spyOn(service, 'generateNextAssetCode').mockResolvedValue('HM2026-000999');
+
+    tx.assetStatus.findUnique.mockResolvedValue({ id: 'status-1' });
+    tx.asset.create.mockResolvedValue(buildAsset({ assetCode: 'HM2026-000999', description: 'Madera | Código original HM: Sin código' }));
+
+    await service.create({ assetCode: 'Sin código', name: 'Mesa', statusId: 'status-1', description: 'Madera' }, user);
+
+    expect(prisma.asset.findUnique).not.toHaveBeenCalled();
+    expect(tx.asset.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assetCode: 'HM2026-000999',
+          description: 'Madera | Código original HM: Sin código',
+        }),
+      }),
+    );
+  });
+
+  it('al editar a sin codigo mantiene codigo interno generado y no valida duplicado', async () => {
+    const tx = buildTxMock();
+    const prisma = { withTransaction: jest.fn(async (fn) => fn(tx)) } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+
+    const existing = buildAsset({ assetCode: 'HM2026-000001', version: 2 });
+    tx.asset.findFirst.mockResolvedValue(existing);
+    tx.asset.update.mockResolvedValue({ ...existing, description: 'Madera | Código original HM: Sin código', version: 3 });
+
+    await service.update('asset-1', { assetCode: '', description: 'Madera | Código original HM: Sin código', version: 2 }, user);
+
+    expect(tx.asset.findUnique).not.toHaveBeenCalled();
+    expect(tx.asset.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assetCode: 'HM2026-000001',
+          description: 'Madera | Código original HM: Sin código',
+        }),
+      }),
+    );
+  });
+
+  it('al editar a sin codigo agrega metadata aunque el cliente no envie descripcion', async () => {
+    const tx = buildTxMock();
+    const prisma = { withTransaction: jest.fn(async (fn) => fn(tx)) } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+
+    const existing = buildAsset({ assetCode: 'HM2026-000001', description: 'Madera', version: 2 });
+    tx.asset.findFirst.mockResolvedValue(existing);
+    tx.asset.update.mockResolvedValue({ ...existing, description: 'Madera | Código original HM: Sin código', version: 3 });
+
+    await service.update('asset-1', { assetCode: '', version: 2 }, user);
+
+    expect(tx.asset.findUnique).not.toHaveBeenCalled();
+    expect(tx.asset.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assetCode: 'HM2026-000001',
+          description: 'Madera | Código original HM: Sin código',
+        }),
+      }),
+    );
+  });
+
+  it('rechaza codigos reales duplicados al editar', async () => {
+    const tx = buildTxMock();
+    const prisma = { withTransaction: jest.fn(async (fn) => fn(tx)) } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+
+    tx.asset.findFirst.mockResolvedValue(buildAsset({ assetCode: 'HM2026-000001', version: 2 }));
+    tx.asset.findUnique.mockResolvedValue(buildAsset({ id: 'asset-2', assetCode: 'ABC-123' }));
+
+    await expect(service.update('asset-1', { assetCode: 'abc-123', version: 2 }, user)).rejects.toThrow('ya está en uso');
+
+    expect(tx.asset.update).not.toHaveBeenCalled();
   });
 });

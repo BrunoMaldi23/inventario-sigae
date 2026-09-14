@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 
 import { Modal } from "@/components/modal";
@@ -10,7 +10,7 @@ import { useToast } from "@/components/toast";
 import { Button, EmptyState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
 import { useData } from "@/hooks/use-fetch";
 import { apiDelete, apiPatch, apiPost } from "@/lib/api";
-import { AssetDTO, AssetStatusDTO, CategoryDTO, ResponsibleDTO } from "@/lib/types";
+import { AssetDTO, AssetStatusDTO, CategoryDTO, LocationDTO, ResponsibleDTO } from "@/lib/types";
 
 interface LocationSheet {
   location: {
@@ -18,6 +18,7 @@ interface LocationSheet {
     name: string;
     path: string;
     type: string;
+    parentId?: string | null;
     active: boolean;
     description?: string | null;
   };
@@ -38,6 +39,14 @@ interface AssetFormState {
   noCode: boolean;
 }
 
+interface SheetHeaderFormState {
+  responsibleName: string;
+  rut: string;
+  dependency: string;
+  locationName: string;
+  floor: string;
+}
+
 const emptyAssetForm: AssetFormState = {
   assetCode: "",
   name: "",
@@ -52,6 +61,8 @@ const emptyAssetForm: AssetFormState = {
   noCode: false,
 };
 
+const DEFAULT_DEPENDENCY = "Escuela Pública Alejandro Gorostiaga";
+
 function nextAssetForm(current: AssetFormState): AssetFormState {
   return {
     ...emptyAssetForm,
@@ -64,28 +75,58 @@ function nextAssetForm(current: AssetFormState): AssetFormState {
 
 export default function LocationInventorySheetPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { notify } = useToast();
   const { data, loading, reload } = useData<LocationSheet>(`/assets/locations/${params.id}`);
   const { data: statuses } = useData<AssetStatusDTO[]>("/statuses");
   const { data: categories } = useData<CategoryDTO[]>("/categories");
-  const { data: responsibles } = useData<ResponsibleDTO[]>("/responsibles");
+  const { data: responsibles } = useData<ResponsibleDTO[]>("/responsibles", { pageSize: 500 });
+  const { data: locations } = useData<LocationDTO[]>("/locations");
   const [modalOpen, setModalOpen] = useState(false);
+  const [headerModalOpen, setHeaderModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetDTO | null>(null);
   const [form, setForm] = useState<AssetFormState>(emptyAssetForm);
+  const [headerForm, setHeaderForm] = useState<SheetHeaderFormState>({
+    responsibleName: "",
+    rut: "",
+    dependency: DEFAULT_DEPENDENCY,
+    locationName: "",
+    floor: "",
+  });
   const [sheetData, setSheetData] = useState<LocationSheet | null>(null);
   const [busy, setBusy] = useState(false);
+  const [headerBusy, setHeaderBusy] = useState(false);
+  const [autoOpenedHeaderLocationId, setAutoOpenedHeaderLocationId] = useState<string | null>(null);
 
   const defaultStatusId = statuses?.[0]?.id ?? "";
 
   useEffect(() => {
-    if (data) setSheetData(data);
-  }, [data]);
-
-  useEffect(() => {
-    if (!modalOpen && defaultStatusId) {
-      setForm((current) => ({ ...current, statusId: current.statusId || defaultStatusId }));
+    const currentSheet = sheetData ?? data;
+    if (
+      searchParams.get("editarFicha") !== "1" ||
+      !currentSheet ||
+      headerModalOpen ||
+      autoOpenedHeaderLocationId === currentSheet.location.id
+    ) {
+      return;
     }
-  }, [defaultStatusId, modalOpen]);
+
+    const timeoutId = window.setTimeout(() => {
+      setHeaderForm({
+        responsibleName: mainResponsible(currentSheet.assets) ?? "",
+        rut: firstImportedValue(currentSheet.assets, "RUT responsable") ?? "",
+        dependency: firstImportedValue(currentSheet.assets, "Dependencia") ?? DEFAULT_DEPENDENCY,
+        locationName: currentSheet.location.name,
+        floor: firstImportedValue(currentSheet.assets, "Piso/Sector") ?? firstImportedValue(currentSheet.assets, "Sector") ?? "",
+      });
+      setAutoOpenedHeaderLocationId(currentSheet.location.id);
+      setHeaderModalOpen(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoOpenedHeaderLocationId, data, headerModalOpen, searchParams, sheetData]);
 
   if (loading) {
     return (
@@ -110,8 +151,30 @@ export default function LocationInventorySheetPage() {
 
   const responsible = mainResponsible(sheet.assets);
   const rut = firstImportedValue(sheet.assets, "RUT responsable");
+  const dependency = firstImportedValue(sheet.assets, "Dependencia") ?? DEFAULT_DEPENDENCY;
   const floor = firstImportedValue(sheet.assets, "Piso/Sector") ?? firstImportedValue(sheet.assets, "Sector");
   const updatedAt = latestUpdatedAt(sheet.assets);
+
+  function openHeaderEditor() {
+    if (!sheet) return;
+    const currentSheet = sheet;
+    setHeaderForm({
+      responsibleName: responsible ?? "",
+      rut: rut ?? "",
+      dependency,
+      locationName: currentSheet.location.name,
+      floor: floor ?? "",
+    });
+    setHeaderModalOpen(true);
+  }
+
+  function closeHeaderEditor() {
+    if (headerBusy) return;
+    setHeaderModalOpen(false);
+    if (searchParams.get("editarFicha") === "1") {
+      router.replace(pathname, { scroll: false });
+    }
+  }
 
   function openCreateAsset() {
     setEditingAsset(null);
@@ -120,9 +183,11 @@ export default function LocationInventorySheetPage() {
   }
 
   function openEditAsset(asset: AssetDTO) {
+    const originalCode = importedValue(asset.description, "Código original");
+    const hasNoHmCode = isNoCodeValue(originalCode);
     setEditingAsset(asset);
     setForm({
-      assetCode: asset.assetCode ?? "",
+      assetCode: hasNoHmCode ? "" : displayOriginalCode(originalCode ?? asset.assetCode),
       name: asset.name ?? "",
       description: visibleDescription(asset.description),
       brand: asset.brand ?? "",
@@ -132,14 +197,15 @@ export default function LocationInventorySheetPage() {
       categoryId: asset.categoryId ?? "",
       responsibleId: asset.responsibleId ?? "",
       quantity: "1",
-      noCode: false,
+      noCode: hasNoHmCode,
     });
     setModalOpen(true);
   }
 
   async function saveAsset(keepAdding = false) {
     if (!sheet) return;
-    if (!form.statusId) {
+    const selectedStatusId = form.statusId || defaultStatusId;
+    if (!selectedStatusId) {
       notify("Seleccione un estado para el bien", "error");
       return;
     }
@@ -148,18 +214,25 @@ export default function LocationInventorySheetPage() {
       return;
     }
     const quantity = editingAsset ? 1 : Math.max(1, Math.min(200, Number(form.quantity) || 1));
-    const withoutHmCode = !editingAsset && (form.noCode || quantity > 1);
+    const withoutHmCode = form.noCode || (!editingAsset && quantity > 1);
+    const nextAssetCode = editingAsset
+      ? withoutHmCode
+        ? ""
+        : form.assetCode.trim() || undefined
+      : withoutHmCode
+        ? undefined
+        : form.assetCode.trim() || undefined;
 
     const payload = {
-      assetCode: withoutHmCode ? undefined : form.assetCode.trim() || undefined,
+      assetCode: nextAssetCode,
       name: form.name.trim(),
       description: editingAsset
-        ? mergeVisibleDescription(editingAsset.description, form.description)
+        ? mergeVisibleDescription(editingAsset.description, form.description, withoutHmCode ? "" : form.assetCode)
         : form.description.trim() || undefined,
       brand: form.brand.trim(),
       model: form.model.trim(),
       serialNumber: form.serialNumber.trim(),
-      statusId: form.statusId,
+      statusId: selectedStatusId,
       categoryId: form.categoryId || undefined,
       responsibleId: form.responsibleId || undefined,
       locationId: sheet.location.id,
@@ -214,6 +287,75 @@ export default function LocationInventorySheetPage() {
     }
   }
 
+  async function saveHeader(event: FormEvent) {
+    event.preventDefault();
+    if (!sheet) return;
+    const currentSheet = sheet;
+    if (!headerForm.locationName.trim()) {
+      notify("Ingrese la ubicación", "error");
+      return;
+    }
+
+    const matchingResponsible = findResponsibleByName(responsibles ?? [], headerForm.responsibleName);
+    if (headerForm.responsibleName.trim() && !matchingResponsible) {
+      notify("El funcionario no existe en Responsables. Créelo primero o seleccione un nombre existente.", "error");
+      return;
+    }
+
+    const matchingFloor = findFloorByName(locations ?? [], headerForm.floor);
+    if (headerForm.floor.trim() && !matchingFloor) {
+      notify("El piso no existe en Ubicaciones. Créelo primero para poder asociarlo.", "error");
+      return;
+    }
+
+    const nextLocationName = headerForm.locationName.trim();
+    const nextRut = headerForm.rut.trim();
+    const nextDependency = headerForm.dependency.trim() || DEFAULT_DEPENDENCY;
+    const nextFloor = headerForm.floor.trim();
+
+    setHeaderBusy(true);
+    try {
+      const updatedLocation = await apiPatch<LocationDTO>(`/locations/${currentSheet.location.id}`, {
+        name: nextLocationName,
+        parentId: matchingFloor?.id ?? currentSheet.location.parentId ?? undefined,
+      });
+      const updatedAssets = await Promise.all(
+        currentSheet.assets.map((asset) =>
+          apiPatch<AssetDTO>(`/assets/${asset.id}`, {
+            description: mergeSheetMetadata(asset.description, {
+              dependency: nextDependency,
+              sourceLocation: nextLocationName,
+              floor: nextFloor,
+              rut: nextRut,
+            }),
+            responsibleId: matchingResponsible?.id ?? asset.responsibleId ?? undefined,
+          }),
+        ),
+      );
+
+      setSheetData((current) =>
+        current
+          ? {
+              location: {
+                ...current.location,
+                ...updatedLocation,
+                name: updatedLocation.name,
+                path: updatedLocation.path ?? current.location.path,
+              },
+              assets: updatedAssets,
+            }
+          : current,
+      );
+      setHeaderModalOpen(false);
+      notify("Datos de la ficha actualizados");
+      window.setTimeout(() => reload(), 0);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudieron guardar los datos de la ficha", "error");
+    } finally {
+      setHeaderBusy(false);
+    }
+  }
+
   async function submitAsset(event: FormEvent) {
     event.preventDefault();
     await saveAsset(false);
@@ -246,6 +388,10 @@ export default function LocationInventorySheetPage() {
           <h2 className="text-xl font-semibold text-slate-950">{sheet.location.name}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button onClick={openHeaderEditor} variant="secondary">
+            <Pencil className="h-4 w-4" />
+            Editar ficha
+          </Button>
           <Button onClick={openCreateAsset} className="bg-emerald-600 hover:bg-emerald-700">
             <Plus className="h-4 w-4" />
             Agregar bien
@@ -294,7 +440,7 @@ export default function LocationInventorySheetPage() {
         <dl className="mt-10 grid max-w-[760px] grid-cols-[150px_1fr] gap-x-5 text-[13px] font-normal leading-[1.38] sm:grid-cols-[190px_1fr] md:mt-12 print:mt-8 print:max-w-[620px] print:grid-cols-[150px_1fr] print:text-[9px] print:leading-[1.25]">
           <SheetMeta label="Nombre de Funcionario:" value={responsible} />
           <SheetMeta label="RUT:" value={rut} />
-          <SheetMeta label="Dependencia:" value="Escuela Pública Alejandro Gorostiaga" />
+          <SheetMeta label="Dependencia:" value={dependency} />
           <SheetMeta label="Ubicación:" value={sheet.location.name} />
           <SheetMeta label="Piso:" value={floor} />
           <SheetMeta label="Fecha de actualización:" value={formatLongSpanishDate(updatedAt)} />
@@ -329,7 +475,7 @@ export default function LocationInventorySheetPage() {
             </thead>
             <tbody>
               {sheet.assets.map((asset, index) => {
-                const originalCode = displayOriginalCode(importedValue(asset.description, "Código original") ?? asset.assetCode);
+                const originalCode = displayAssetCode(asset);
                 const description = visibleDescription(asset.description);
                 return (
                   <tr key={asset.id}>
@@ -396,23 +542,21 @@ export default function LocationInventorySheetPage() {
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Field label="Código del bien" hint="Si no hay código HM, active la opción o deje este campo vacío.">
-              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} placeholder="Sin código" maxLength={40} disabled={!editingAsset && (form.noCode || Number(form.quantity) > 1)} />
-              {!editingAsset && (
-                <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={form.noCode || Number(form.quantity) > 1}
-                    disabled={Number(form.quantity) > 1}
-                    onChange={(event) => setForm((current) => ({
-                      ...current,
-                      noCode: event.target.checked,
-                      assetCode: event.target.checked ? "" : current.assetCode,
-                    }))}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  Sin código HM
-                </label>
-              )}
+              <Input value={form.assetCode} onChange={(event) => setForm((current) => ({ ...current, assetCode: event.target.value }))} placeholder="Sin código" maxLength={40} disabled={form.noCode || (!editingAsset && Number(form.quantity) > 1)} />
+              <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={form.noCode || (!editingAsset && Number(form.quantity) > 1)}
+                  disabled={!editingAsset && Number(form.quantity) > 1}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    noCode: event.target.checked,
+                    assetCode: event.target.checked ? "" : current.assetCode,
+                  }))}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Sin código HM
+              </label>
             </Field>
             <Field label="Denominación" required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />
@@ -439,7 +583,7 @@ export default function LocationInventorySheetPage() {
               <Input value={form.serialNumber} onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))} maxLength={200} />
             </Field>
             <Field label="Estado" required>
-              <Select value={form.statusId} onChange={(event) => setForm((current) => ({ ...current, statusId: event.target.value }))} required>
+              <Select value={form.statusId || defaultStatusId} onChange={(event) => setForm((current) => ({ ...current, statusId: event.target.value }))} required>
                 <option value="">Seleccione estado</option>
                 {(statuses ?? []).map((status) => (
                   <option key={status.id} value={status.id}>{status.name}</option>
@@ -480,6 +624,55 @@ export default function LocationInventorySheetPage() {
           </div>
         </form>
       </Modal>
+
+      <Modal open={headerModalOpen} onClose={closeHeaderEditor} title="Editar datos de la ficha" size="lg">
+        <form onSubmit={saveHeader} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre de Funcionario">
+              <Input
+                value={headerForm.responsibleName}
+                onChange={(event) => setHeaderForm((current) => ({ ...current, responsibleName: event.target.value }))}
+                list="sheet-responsibles"
+                maxLength={160}
+              />
+              <datalist id="sheet-responsibles">
+                {(responsibles ?? []).map((item) => (
+                  <option key={item.id} value={item.name} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="RUT">
+              <Input value={headerForm.rut} onChange={(event) => setHeaderForm((current) => ({ ...current, rut: event.target.value }))} maxLength={20} placeholder="16.532.213-4" />
+            </Field>
+            <Field label="Dependencia">
+              <Input value={headerForm.dependency} onChange={(event) => setHeaderForm((current) => ({ ...current, dependency: event.target.value }))} maxLength={160} />
+            </Field>
+            <Field label="Ubicación" required>
+              <Input value={headerForm.locationName} onChange={(event) => setHeaderForm((current) => ({ ...current, locationName: event.target.value }))} maxLength={160} required />
+            </Field>
+            <Field label="Piso">
+              <Input
+                value={headerForm.floor}
+                onChange={(event) => setHeaderForm((current) => ({ ...current, floor: event.target.value }))}
+                list="sheet-floors"
+                maxLength={160}
+              />
+              <datalist id="sheet-floors">
+                {(locations ?? []).filter((item) => item.type === "floor").map((item) => (
+                  <option key={item.id} value={item.name} />
+                ))}
+              </datalist>
+            </Field>
+          </div>
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Estos datos se aplican a la cabecera y a los bienes activos de esta ficha.
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={closeHeaderEditor} disabled={headerBusy} className="w-full sm:w-auto">Cancelar</Button>
+            <Button type="submit" loading={headerBusy} className="w-full sm:w-auto">Guardar ficha</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -510,18 +703,28 @@ function SheetTd({
 }
 
 function importedValue(description: string | null | undefined, label: string) {
-  return (description ?? "")
+  const normalizedLabel = label.toLowerCase();
+  const part = (description ?? "")
     .split("|")
-    .map((part) => part.trim())
-    .find((part) => part.toLowerCase().startsWith(label.toLowerCase()))
-    ?.slice(label.length)
-    .replace(/^:\s*/, "")
-    .trim();
+    .map((chunk) => chunk.trim())
+    .find((chunk) => {
+      const colonIndex = chunk.indexOf(":");
+      if (colonIndex === -1) return false;
+      return chunk.slice(0, colonIndex).trim().toLowerCase().startsWith(normalizedLabel);
+    });
+  if (!part) return undefined;
+  return part.slice(part.indexOf(":") + 1).trim();
 }
 
 function displayOriginalCode(value: string | null | undefined) {
   const clean = (value ?? "").replace(/^HM:\s*/i, "").trim();
   return clean || "Sin código";
+}
+
+function displayAssetCode(asset: AssetDTO) {
+  const originalCode = importedValue(asset.description, "Código original");
+  if (isNoCodeValue(originalCode)) return "Sin código";
+  return displayOriginalCode(originalCode ?? asset.assetCode);
 }
 
 function firstImportedValue(assets: AssetDTO[], label: string) {
@@ -536,17 +739,90 @@ function visibleDescription(description?: string | null) {
   return (description ?? "")
     .split("|")
     .map((part) => part.trim())
-    .filter((part) => part && !/^(Código original|Ubicación detalle origen|Piso\/Sector|Sector|RUT responsable):/i.test(part))
+    .filter((part) => part && !isSheetMetadataPart(part))
     .join(" | ");
 }
 
-function mergeVisibleDescription(originalDescription: string | null | undefined, visibleValue: string) {
+function mergeVisibleDescription(originalDescription: string | null | undefined, visibleValue: string, originalCode?: string) {
+  const normalizedCode = originalCode?.trim();
   const preservedImportedParts = (originalDescription ?? "")
     .split("|")
     .map((part) => part.trim())
-    .filter((part) => /^(Código original|Ubicación detalle origen|Piso\/Sector|Sector|RUT responsable):/i.test(part));
+    .filter(isSheetMetadataPart);
 
-  return [visibleValue.trim(), ...preservedImportedParts].filter(Boolean).join(" | ");
+  const mergedParts = upsertMetadataPart(
+    preservedImportedParts,
+    "Código original HM",
+    normalizedCode || "Sin código",
+  );
+
+  return [visibleValue.trim(), ...mergedParts].filter(Boolean).join(" | ");
+}
+
+function mergeSheetMetadata(
+  originalDescription: string | null | undefined,
+  metadata: { dependency: string; sourceLocation: string; floor: string; rut: string },
+) {
+  let parts = (originalDescription ?? "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  parts = upsertMetadataPart(parts, "Dependencia", metadata.dependency);
+  parts = upsertMetadataPart(parts, "Ubicación detalle origen", metadata.sourceLocation);
+  parts = upsertMetadataPart(parts, "Piso/Sector", metadata.floor);
+  parts = upsertMetadataPart(parts, "RUT responsable", metadata.rut);
+  return parts.join(" | ");
+}
+
+function upsertMetadataPart(parts: string[], label: string, value: string) {
+  const normalizedValue = value.trim();
+  const prefix = label.toLowerCase();
+  const nextParts = parts.filter((part) => {
+    const colonIndex = part.indexOf(":");
+    if (colonIndex === -1) return true;
+    return part.slice(0, colonIndex).trim().toLowerCase() !== prefix;
+  });
+  if (normalizedValue) nextParts.push(`${label}: ${normalizedValue}`);
+  return nextParts;
+}
+
+function isSheetMetadataPart(part: string) {
+  const colonIndex = part.indexOf(":");
+  if (colonIndex === -1) return false;
+  const label = part.slice(0, colonIndex).trim().toLowerCase();
+  return (
+    label.startsWith("código original") ||
+    label === "ubicación detalle origen" ||
+    label === "dependencia" ||
+    label === "piso/sector" ||
+    label === "sector" ||
+    label === "rut responsable"
+  );
+}
+
+function findResponsibleByName(responsibles: ResponsibleDTO[], name: string) {
+  const target = normalizeLookup(name);
+  if (!target) return undefined;
+  return responsibles.find((item) => normalizeLookup(item.name) === target);
+}
+
+function findFloorByName(locations: LocationDTO[], name: string) {
+  const target = normalizeLookup(name);
+  if (!target) return undefined;
+  return locations.find((item) => item.type === "floor" && normalizeLookup(item.name) === target);
+}
+
+function normalizeLookup(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function isNoCodeValue(value: string | null | undefined) {
+  return normalizeLookup(value ?? "").replace(/\s+/g, " ") === "sin codigo";
 }
 
 function mainResponsible(assets: AssetDTO[]) {

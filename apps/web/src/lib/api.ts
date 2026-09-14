@@ -1,6 +1,6 @@
 "use client";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+export const API_URL = "/api";
 
 const TOKEN_KEY = "inv_access_token";
 const REFRESH_KEY = "inv_refresh_token";
@@ -91,6 +91,10 @@ async function parseError(res: Response): Promise<ApiClientError> {
       code = body.error.code ?? code;
       message = body.error.message ?? message;
       details = body.error.details;
+    } else if (body?.message) {
+      message = Array.isArray(body.message) ? body.message.join(", ") : String(body.message);
+      code = body.code ?? body.error ?? code;
+      details = body;
     }
   } catch {
     /* sin cuerpo JSON */

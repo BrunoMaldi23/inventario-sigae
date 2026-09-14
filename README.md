@@ -34,7 +34,7 @@ Navegador (Vercel) ──HTTPS──▶ https://debian-server.tailfb30e3.ts.net/
 
 ```powershell
 cd apps/web
-Copy-Item .env.example .env.local   # NEXT_PUBLIC_API_URL=(URL del API)
+Copy-Item .env.example .env.local   # NEXT_PUBLIC_API_URL=/api, API_PROXY_URL=http://localhost:3000
 pnpm dev                            # http://localhost:3001
 ```
 
@@ -57,7 +57,10 @@ pnpm --filter api lint;  pnpm --filter api typecheck; pnpm --filter api build; p
 ```powershell
 cd apps/web
 npx vercel env add NEXT_PUBLIC_API_URL       # en entornos preview y production:
-#   valor: https://debian-server.tailfb30e3.ts.net/api
+#   valor: /api
+npx vercel env add API_PROXY_URL             # en entornos preview y production:
+#   valor: URL base pública de la API de inventario, sin /api.
+#   Debe responder /api/health con service="inventario-api".
 npx vercel deploy --prod --yes
 ```
 

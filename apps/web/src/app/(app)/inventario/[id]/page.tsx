@@ -179,7 +179,7 @@ export default function FichaBienPage() {
             <tbody>
               <tr>
                 <SheetTd center>{codeParts.sequence}</SheetTd>
-                <SheetTd center>{hm.originalCode ?? asset.assetCode}</SheetTd>
+                <SheetTd center>{displayAssetCode(asset)}</SheetTd>
                 <SheetTd>{asset.name}</SheetTd>
                 <SheetTd>{cleanDescription || "Sin descripción registrada"}</SheetTd>
                 <SheetTd center>{asset.brand || "SIN MARCA"}</SheetTd>
@@ -268,7 +268,7 @@ export default function FichaBienPage() {
         <>
           <TransferModal asset={asset} open={transferOpen} onClose={() => setTransferOpen(false)} onDone={() => { setTransferOpen(false); reload(); }} />
           <StatusModal asset={asset} open={statusOpen} onClose={() => setStatusOpen(false)} onDone={() => { setStatusOpen(false); reload(); }} />
-          {canUpdate && <EditModal asset={asset} open={editOpen} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); reload(); }} />}
+          {canUpdate && <EditModal key={`${asset.id}-${asset.version}`} asset={asset} open={editOpen} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); reload(); }} />}
         </>
       )}
     </div>
@@ -303,6 +303,17 @@ function extractImportedHeader(description?: string | null) {
 
 function visibleDescription(description?: string | null) {
   return extractImportedHeader(description).plainDescription;
+}
+
+function displayOriginalCode(value: string | null | undefined) {
+  const clean = (value ?? "").replace(/^HM:\s*/i, "").trim();
+  return clean || "Sin código";
+}
+
+function displayAssetCode(asset: AssetDTO) {
+  const originalCode = extractImportedHeader(asset.description).originalCode;
+  if (isNoCodeValue(originalCode)) return "Sin código";
+  return displayOriginalCode(originalCode ?? asset.assetCode);
 }
 
 function splitAssetCode(assetCode: string) {
@@ -534,19 +545,26 @@ function EditModal({ asset, open, onClose, onDone }: { asset: AssetDTO; open: bo
   const { data: statuses } = useData<AssetStatusDTO[]>("/statuses");
   const { data: locations } = useData<LocationDTO[]>("/locations?active=true");
   const { data: responsibles } = useData<ResponsibleDTO[]>("/responsibles?active=true");
-  const [form, setForm] = useState(() => ({
-    name: asset.name,
-    description: asset.description ?? "",
-    brand: asset.brand ?? "",
-    model: asset.model ?? "",
-    serialNumber: asset.serialNumber ?? "",
-    barcode: asset.barcode ?? "",
-    categoryId: asset.categoryId ?? "",
-    statusId: asset.statusId ?? "",
-    locationId: asset.locationId ?? "",
-    responsibleId: asset.responsibleId ?? "",
-    active: asset.active,
-  }));
+  const initialForm = () => {
+    const originalCode = extractImportedHeader(asset.description).originalCode;
+    const noCode = isNoCodeValue(originalCode);
+    return {
+      assetCode: noCode ? "" : displayOriginalCode(originalCode ?? asset.assetCode),
+      noCode,
+      name: asset.name,
+      description: visibleDescription(asset.description) ?? "",
+      brand: asset.brand ?? "",
+      model: asset.model ?? "",
+      serialNumber: asset.serialNumber ?? "",
+      barcode: asset.barcode ?? "",
+      categoryId: asset.categoryId ?? "",
+      statusId: asset.statusId ?? "",
+      locationId: asset.locationId ?? "",
+      responsibleId: asset.responsibleId ?? "",
+      active: asset.active,
+    };
+  };
+  const [form, setForm] = useState(initialForm);
   const [busy, setBusy] = useState(false);
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -557,8 +575,9 @@ function EditModal({ asset, open, onClose, onDone }: { asset: AssetDTO; open: bo
     setBusy(true);
     try {
       await apiPatch(`/assets/${asset.id}`, {
+        assetCode: form.noCode ? "" : form.assetCode.trim() || undefined,
         name: form.name,
-        description: form.description,
+        description: mergeVisibleDescription(asset.description, form.description, form.noCode ? "" : form.assetCode),
         brand: form.brand,
         model: form.model,
         serialNumber: form.serialNumber,
@@ -582,6 +601,28 @@ function EditModal({ asset, open, onClose, onDone }: { asset: AssetDTO; open: bo
   return (
     <Modal open={open} onClose={() => !busy && onClose()} title={`Editar ${asset.assetCode}`} size="lg">
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+        <Field label="Código del bien" hint="Si no hay código HM, active la opción o deje este campo vacío.">
+          <Input
+            value={form.assetCode}
+            onChange={set("assetCode")}
+            placeholder="Sin código"
+            maxLength={40}
+            disabled={form.noCode}
+          />
+          <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <input
+              type="checkbox"
+              checked={form.noCode}
+              onChange={(event) => setForm((current) => ({
+                ...current,
+                noCode: event.target.checked,
+                assetCode: event.target.checked ? "" : current.assetCode,
+              }))}
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            Sin código HM
+          </label>
+        </Field>
         <Field label="Nombre" required>
           <Input value={form.name} onChange={set("name")} required maxLength={200} />
         </Field>
@@ -621,7 +662,7 @@ function EditModal({ asset, open, onClose, onDone }: { asset: AssetDTO; open: bo
           </Select>
         </Field>
         <div className="md:col-span-2">
-          <Field label="Descripción">
+          <Field label="Descripción" hint="Escriba color, material y detalles visibles. El texto de “Sin código” se agrega solo cuando corresponde.">
             <Textarea value={form.description} onChange={set("description")} rows={2} maxLength={500} />
           </Field>
         </div>
@@ -638,4 +679,60 @@ function EditModal({ asset, open, onClose, onDone }: { asset: AssetDTO; open: bo
       </form>
     </Modal>
   );
+}
+
+function mergeVisibleDescription(originalDescription: string | null | undefined, visibleValue: string, originalCode?: string) {
+  const normalizedCode = originalCode?.trim();
+  const preservedImportedParts = (originalDescription ?? "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(isSheetMetadataPart);
+
+  const mergedParts = upsertMetadataPart(
+    preservedImportedParts,
+    "Código original HM",
+    normalizedCode || "Sin código",
+  );
+
+  return [visibleValue.trim(), ...mergedParts].filter(Boolean).join(" | ");
+}
+
+function upsertMetadataPart(parts: string[], label: string, value: string) {
+  const normalizedValue = value.trim();
+  const prefix = label.toLowerCase();
+  const nextParts = parts.filter((part) => {
+    const colonIndex = part.indexOf(":");
+    if (colonIndex === -1) return true;
+    return part.slice(0, colonIndex).trim().toLowerCase() !== prefix;
+  });
+  if (normalizedValue) nextParts.push(`${label}: ${normalizedValue}`);
+  return nextParts;
+}
+
+function isSheetMetadataPart(part: string) {
+  const colonIndex = part.indexOf(":");
+  if (colonIndex === -1) return false;
+  const label = part.slice(0, colonIndex).trim().toLowerCase();
+  return (
+    label.startsWith("código original") ||
+    label === "ubicación detalle origen" ||
+    label === "dependencia" ||
+    label === "piso/sector" ||
+    label === "sector" ||
+    label === "rut responsable"
+  );
+}
+
+function normalizeLookup(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function isNoCodeValue(value: string | null | undefined) {
+  const normalized = normalizeLookup((value ?? "").replace(/^HM:\s*/i, ""));
+  return normalized === "sin codigo";
 }

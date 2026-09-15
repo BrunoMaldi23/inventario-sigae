@@ -10,6 +10,7 @@ import {
   BulkTransferDto,
   ChangeStatusDto,
   CreateAssetDto,
+  DeleteLocationSheetDto,
   QueryAssetsDto,
   TransferAssetDto,
   UpdateAssetDto,
@@ -96,13 +97,6 @@ export class AssetsController {
     return this.assetsService.update(id, dto, user);
   }
 
-  @Delete(':id')
-  @Permissions('asset.delete')
-  @ApiOperation({ summary: 'Eliminación lógica del bien' })
-  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.assetsService.remove(id, user);
-  }
-
   @Post(':id/transfer')
   @Permissions('asset.transfer')
   @ApiOperation({ summary: 'Trasladar bien (atómico: actualiza ubicación + historial + auditoría)' })
@@ -129,5 +123,23 @@ export class AssetsController {
   @ApiOperation({ summary: 'Cambio de estado masivo' })
   bulkStatus(@Body() dto: BulkStatusDto, @CurrentUser() user: AuthUser) {
     return this.assetsService.bulkStatus(dto, user);
+  }
+
+  @Delete('locations/:locationId/sheet')
+  @Permissions('asset.delete')
+  @ApiOperation({ summary: 'Eliminar ficha mural de una ubicación y opcionalmente desactivar la ubicación' })
+  removeLocationSheet(
+    @Param('locationId') locationId: string,
+    @Body() dto: DeleteLocationSheetDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.assetsService.removeLocationSheet(locationId, dto, user);
+  }
+
+  @Delete(':id')
+  @Permissions('asset.delete')
+  @ApiOperation({ summary: 'Eliminación lógica del bien' })
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.assetsService.remove(id, user);
   }
 }

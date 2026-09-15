@@ -14,6 +14,7 @@ import { AuditService } from '../common/audit/audit.service';
 import { locationPath } from '../locations/locations.service';
 import {
   conflict,
+  forbidden,
   notFound,
   invalidData,
 } from '../common/exceptions/business.exception';
@@ -23,6 +24,7 @@ import {
   BulkTransferDto,
   ChangeStatusDto,
   CreateAssetDto,
+  DeleteLocationSheetDto,
   QueryAssetsDto,
   TransferAssetDto,
   UpdateAssetDto,
@@ -540,6 +542,54 @@ const data: Prisma.AssetUncheckedUpdateInput = {
 
     await this.audit.diff(user.id, 'ASSET_DELETE', 'Asset', id, { active: true }, { active: false });
     return { success: true };
+  }
+
+  async removeLocationSheet(
+    locationId: string,
+    dto: DeleteLocationSheetDto,
+    user: AuthUser,
+  ): Promise<{ success: true; deletedAssets: number; deletedLocation: boolean }> {
+    return this.prisma.withTransaction(async (tx) => {
+      const location = await tx.location.findFirst({ where: { id: locationId, active: true } });
+      if (!location) throw notFound('La ubicación no existe');
+
+      if (dto.deleteLocation) {
+        if (!user.permissions?.includes('location.manage')) {
+          throw forbidden('No tiene permisos para eliminar la ubicación');
+        }
+        const children = await tx.location.count({ where: { parentId: locationId, active: true } });
+        if (children > 0) throw invalidData('No puede eliminar una ubicación con ubicaciones hijas');
+      }
+
+      const deletedAssets = await tx.asset.updateMany({
+        where: { locationId, active: true, deletedAt: null },
+        data: { active: false, deletedAt: new Date(), updatedById: user.id },
+      });
+
+      if (dto.deleteLocation) {
+        await tx.location.update({
+          where: { id: locationId },
+          data: { active: false },
+        });
+      }
+
+      await this.audit.diff(
+        user.id,
+        dto.deleteLocation ? 'LOCATION_SHEET_DELETE_WITH_LOCATION' : 'LOCATION_SHEET_DELETE',
+        'Location',
+        locationId,
+        { active: true, assetCount: deletedAssets.count },
+        { active: dto.deleteLocation ? false : true, assetCount: 0 },
+        { deletedAssets: deletedAssets.count, deletedLocation: Boolean(dto.deleteLocation) },
+        tx,
+      );
+
+      return {
+        success: true,
+        deletedAssets: deletedAssets.count,
+        deletedLocation: Boolean(dto.deleteLocation),
+      };
+    });
   }
 
   /* ------------------------------------------------------------------ */

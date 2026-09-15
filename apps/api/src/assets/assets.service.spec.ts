@@ -11,10 +11,11 @@ function buildTxMock() {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     assetStatus: { findUnique: jest.fn() },
     assetCategory: { findUnique: jest.fn() },
-    location: { findFirst: jest.fn(), findUnique: jest.fn() },
+    location: { count: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     responsible: { findFirst: jest.fn(), findUnique: jest.fn() },
     assetMovement: { create: jest.fn() },
     auditLog: { create: jest.fn() },
@@ -260,5 +261,55 @@ describe('AssetsService assetCode sin codigo', () => {
     await expect(service.update('asset-1', { assetCode: 'abc-123', version: 2 }, user)).rejects.toThrow('ya está en uso');
 
     expect(tx.asset.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('AssetsService.removeLocationSheet', () => {
+  it('elimina logicamente los bienes activos de una ficha sin desactivar la ubicacion', async () => {
+    const tx = buildTxMock();
+    const prisma = { withTransaction: jest.fn(async (fn) => fn(tx)) } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+
+    tx.location.findFirst.mockResolvedValue({ id: 'loc-1', active: true, name: 'Biblioteca' });
+    tx.asset.updateMany.mockResolvedValue({ count: 75 });
+
+    const result = await service.removeLocationSheet('loc-1', { deleteLocation: false }, user);
+
+    expect(tx.asset.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { locationId: 'loc-1', active: true, deletedAt: null },
+        data: expect.objectContaining({ active: false, updatedById: user.id }),
+      }),
+    );
+    expect(tx.location.update).not.toHaveBeenCalled();
+    expect(audit.diff).toHaveBeenCalledWith(
+      user.id,
+      'LOCATION_SHEET_DELETE',
+      'Location',
+      'loc-1',
+      { active: true, assetCount: 75 },
+      { active: true, assetCount: 0 },
+      { deletedAssets: 75, deletedLocation: false },
+      tx,
+    );
+    expect(result).toEqual({ success: true, deletedAssets: 75, deletedLocation: false });
+  });
+
+  it('rechaza eliminar la ubicacion si el usuario no tiene permiso location.manage', async () => {
+    const tx = buildTxMock();
+    const prisma = { withTransaction: jest.fn(async (fn) => fn(tx)) } as unknown as PrismaService;
+    const audit = { diff: jest.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AssetsService(prisma, audit);
+
+    tx.location.findFirst.mockResolvedValue({ id: 'loc-1', active: true, name: 'Biblioteca' });
+
+    await expect(service.removeLocationSheet('loc-1', { deleteLocation: true }, user)).rejects.toThrow(
+      'No tiene permisos para eliminar la ubicación',
+    );
+
+    expect(tx.asset.updateMany).not.toHaveBeenCalled();
+    expect(tx.location.update).not.toHaveBeenCalled();
+    expect(audit.diff).not.toHaveBeenCalled();
   });
 });

@@ -98,6 +98,13 @@ export class QueryAssetsDto {
   order?: 'asc' | 'desc';
 }
 
+export class DeleteLocationSheetDto {
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  deleteLocation?: boolean;
+}
+
 export class CreateAssetDto {
   @IsOptional()
   @IsString()

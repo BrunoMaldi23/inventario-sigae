@@ -7,6 +7,7 @@ import { ArrowLeft, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 
 import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
+import { useAuth } from "@/components/auth-provider";
 import { Button, EmptyState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
 import { useData } from "@/hooks/use-fetch";
 import { apiDelete, apiPatch, apiPost } from "@/lib/api";
@@ -79,6 +80,7 @@ export default function LocationInventorySheetPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { notify } = useToast();
+  const { hasPermission } = useAuth();
   const { data, loading, reload } = useData<LocationSheet>(`/assets/locations/${params.id}`);
   const { data: statuses } = useData<AssetStatusDTO[]>("/statuses");
   const { data: categories } = useData<CategoryDTO[]>("/categories");
@@ -86,6 +88,7 @@ export default function LocationInventorySheetPage() {
   const { data: locations } = useData<LocationDTO[]>("/locations");
   const [modalOpen, setModalOpen] = useState(false);
   const [headerModalOpen, setHeaderModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetDTO | null>(null);
   const [form, setForm] = useState<AssetFormState>(emptyAssetForm);
   const [headerForm, setHeaderForm] = useState<SheetHeaderFormState>({
@@ -98,9 +101,12 @@ export default function LocationInventorySheetPage() {
   const [sheetData, setSheetData] = useState<LocationSheet | null>(null);
   const [busy, setBusy] = useState(false);
   const [headerBusy, setHeaderBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState<"sheet" | "location" | null>(null);
   const [autoOpenedHeaderLocationId, setAutoOpenedHeaderLocationId] = useState<string | null>(null);
 
   const defaultStatusId = statuses?.[0]?.id ?? "";
+  const canDeleteSheet = hasPermission("asset.delete");
+  const canDeleteLocation = hasPermission("location.manage");
 
   useEffect(() => {
     const currentSheet = sheetData ?? data;
@@ -379,6 +385,34 @@ export default function LocationInventorySheetPage() {
     }
   }
 
+  async function removeSheet(deleteLocation: boolean) {
+    if (!sheet) return;
+    setDeleteBusy(deleteLocation ? "location" : "sheet");
+    try {
+      const result = await apiDelete<{ success: true; deletedAssets: number; deletedLocation: boolean }>(
+        `/assets/locations/${sheet.location.id}/sheet`,
+        undefined,
+        { deleteLocation },
+      );
+      setDeleteModalOpen(false);
+      notify(
+        result.deletedLocation
+          ? `Ficha y ubicación eliminadas (${result.deletedAssets} bienes)`
+          : `Ficha eliminada (${result.deletedAssets} bienes)`,
+      );
+      if (deleteLocation) {
+        router.push("/inventario");
+        return;
+      }
+      setSheetData((current) => (current ? { ...current, assets: [] } : current));
+      window.setTimeout(() => reload(), 0);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo eliminar la ficha", "error");
+    } finally {
+      setDeleteBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -395,6 +429,12 @@ export default function LocationInventorySheetPage() {
             <Plus className="h-4 w-4" />
             Agregar bien
           </Button>
+          {canDeleteSheet && (
+            <Button onClick={() => setDeleteModalOpen(true)} variant="danger">
+              <Trash2 className="h-4 w-4" />
+              Eliminar ficha
+            </Button>
+          )}
           <Link href="/inventario" className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50">
             <ArrowLeft className="h-4 w-4" />
             Inventario
@@ -671,6 +711,33 @@ export default function LocationInventorySheetPage() {
             <Button type="submit" loading={headerBusy} className="w-full sm:w-auto">Guardar ficha</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={deleteModalOpen} onClose={() => !deleteBusy && setDeleteModalOpen(false)} title="Eliminar ficha" size="md">
+        <div className="space-y-4">
+          <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm leading-6 text-red-900">
+            Esta acción eliminará los bienes activos de la ficha <span className="font-semibold">{sheet.location.name}</span>. Puedes conservar la ubicación para volver a cargar inventario después, o eliminarla también si ya no se usará.
+          </div>
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+            Bienes activos en esta ficha: <span className="font-semibold text-slate-800">{sheet.assets.length}</span>
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setDeleteModalOpen(false)} disabled={Boolean(deleteBusy)} className="w-full sm:w-auto">
+              Cancelar
+            </Button>
+            <Button type="button" variant="danger" loading={deleteBusy === "sheet"} disabled={Boolean(deleteBusy)} onClick={() => removeSheet(false)} className="w-full sm:w-auto">
+              Eliminar solo ficha
+            </Button>
+            <Button type="button" variant="danger" loading={deleteBusy === "location"} disabled={Boolean(deleteBusy) || !canDeleteLocation} onClick={() => removeSheet(true)} className="w-full sm:w-auto">
+              Eliminar ficha y ubicación
+            </Button>
+          </div>
+          {!canDeleteLocation && (
+            <p className="text-xs text-slate-500">
+              Para eliminar también la ubicación se requiere permiso de administración de ubicaciones.
+            </p>
+          )}
+        </div>
       </Modal>
     </div>
   );

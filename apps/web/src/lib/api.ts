@@ -205,8 +205,8 @@ export async function apiPatch<T>(path: string, body?: unknown, params?: QueryPa
   return res.data;
 }
 
-export async function apiDelete<T>(path: string, params?: QueryParams): Promise<T> {
-  const res = await rawRequest<ApiData<T>>("DELETE", path, { params });
+export async function apiDelete<T>(path: string, params?: QueryParams, body?: unknown): Promise<T> {
+  const res = await rawRequest<ApiData<T>>("DELETE", path, { params, body });
   return res.data;
 }
 
